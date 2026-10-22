@@ -148,9 +148,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         string source = d.Simulated ? "SIMULATED Windows metadata" : "Windows PnP metadata";
         foreach (var (name,value) in new[] { ("Detected name",d.Name),("Manufacturer (metadata)",d.Manufacturer),("VID",d.Vid),("PID",d.Pid),("Device instance ID",d.InstanceId),("USB interface path",d.InterfacePath ?? "Unavailable"),("Interface number (PnP MI)",d.InterfaceNumber),("Hardware IDs",string.Join("; ",d.HardwareIds)),("Compatible IDs / class",string.Join("; ",d.CompatibleIds)),("Driver provider",d.DriverProvider),("Driver version",d.DriverVersion),("PnP problem code",d.ProblemCode.ToString()),("Parent chain",string.Join(" → ",d.Ancestors)),("Associated printer queue","Unavailable — no verified physical association") })
             Facts.Add(new(name, value, source, string.IsNullOrEmpty(value) || value.StartsWith("Unavailable") ? "Unavailable" : "Metadata"));
-        Facts.Add(new("Firmware version", "Unavailable", "No supported query"));
-        Facts.Add(new("Serial number (before query)", "Unavailable", "PnP instance suffix is not a verified serial"));
-        Facts.Add(new("Raw USB descriptors", "Unavailable", "Not exposed by implemented driver transport"));
+        Facts.Add(new("Firmware version", "Unavailable", "No supported query", "Unavailable"));
+        Facts.Add(new("Serial number (before query)", "Unavailable", "PnP instance suffix is not a verified serial", "Unavailable"));
+        Facts.Add(new("Raw USB descriptors", "Unavailable", "Not exposed by implemented driver transport", "Unavailable"));
     }
     private void Export()
     {

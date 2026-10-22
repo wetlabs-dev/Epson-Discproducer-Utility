@@ -39,12 +39,13 @@ public static class NativeWorker
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)] private static extern SafeFileHandle CreateFileW(string name, uint access, uint share, nint security, uint creation, uint flags, nint template);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool DeviceIoControl(SafeFileHandle file, uint ioctl, nint input, int inputLength, byte[] output, int outputLength, out int returned, nint overlapped);
 }
-public sealed class WorkerClient(string executable)
+public sealed class WorkerClient(string executable, IReadOnlyList<string>? hostArguments = null)
 {
     public async Task<WorkerReply> RunAsync(WorkerRequest request, TimeSpan timeout, CancellationToken token)
     {
         if (timeout < TimeSpan.FromMilliseconds(10) || timeout > TimeSpan.FromMinutes(2)) throw new ArgumentOutOfRangeException(nameof(timeout));
         var info = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        if (hostArguments != null) foreach (string argument in hostArguments) info.ArgumentList.Add(argument);
         info.ArgumentList.Add("--worker");
         using var process = new Process { StartInfo = info };
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -53,20 +54,28 @@ public sealed class WorkerClient(string executable)
         {
             token.ThrowIfCancellationRequested();
             process.Start();
+            // Cancellation cleanup must not depend on the WPF dispatcher remaining alive.
+            using var stopOnCancellation = deadline.Token.Register(() => Stop(process));
             var output = process.StandardOutput.ReadToEndAsync(deadline.Token);
             var error = process.StandardError.ReadToEndAsync(deadline.Token);
-            await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(request).AsMemory(), deadline.Token);
+            await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(request).AsMemory(), deadline.Token).ConfigureAwait(false);
             process.StandardInput.Close();
-            await process.WaitForExitAsync(deadline.Token);
-            if (process.ExitCode != 0) throw new IOException($"Diagnostic worker exited with code {process.ExitCode}: {await error}");
-            return JsonSerializer.Deserialize<WorkerReply>(await output) ?? throw new IOException("Empty worker reply");
+            await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
+            deadline.Token.ThrowIfCancellationRequested();
+            if (process.ExitCode != 0) throw new IOException($"Diagnostic worker exited with code {process.ExitCode}: {await error.ConfigureAwait(false)}");
+            return JsonSerializer.Deserialize<WorkerReply>(await output.ConfigureAwait(false)) ?? throw new IOException("Empty worker reply");
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new TimeoutException("Diagnostic operation exceeded its time limit; worker stopped. No retry was sent."); }
         finally
         {
-            try { if (process.Id != 0 && !process.HasExited) process.Kill(entireProcessTree: true); }
-            catch (InvalidOperationException) { }
+            Stop(process);
         }
+    }
+    private static void Stop(Process process)
+    {
+        try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+        catch (InvalidOperationException) { }
+        catch (Win32Exception) { } // Already exited or OS teardown raced with cancellation.
     }
 }
 public sealed class UsbPrinterClassTransport(WorkerClient worker, string path) : IDeviceTransport

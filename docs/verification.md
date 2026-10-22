@@ -1,6 +1,6 @@
 # Verification
 
-Automated checks cover portable parsing, authorization, mocked error handling and export redaction. The Windows workflow additionally builds Debug/Release, publishes the self-contained x64 app and opens/closes its WPF window. A successful CI build does not prove physical PP-100 compatibility.
+The local Release cross-build passed with zero warnings/errors using .NET SDK 10.0.402; all 31 tests passed. Automated checks cover portable parsing, authorization, mocked error handling, export redaction, and actual child-process IPC, timeouts, cancellation and crashes. The Windows workflow additionally builds Debug/Release, publishes the self-contained x64 app and opens/closes its WPF window and executes native Windows enumeration through the packaged worker. Consult the [Windows workflow](https://github.com/wetlabs-dev/Epson-Discproducer-Utility/actions/workflows/windows.yml) for the exact commit and result. A successful CI build does not prove physical PP-100 compatibility.
 
 ## Hardware acceptance checklist (not yet executed)
 

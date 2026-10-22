@@ -5,7 +5,7 @@
 - **Usb**: SetupAPI enumeration, Configuration Manager parent chains/problem codes, read-only driver metadata, local Epson candidate spooler queues, native USB printer IOCTLs, bounded worker-process client.
 - **Protocols**: defensive IEEE 1284/descriptor parsers and documented status decoding. Parsing is separate from native I/O. The descriptor parser is tested but there is no claim that live descriptor retrieval is implemented.
 - **Diagnostics**: Serilog session sink, full in-memory communication records, conservative export redaction and ZIP generation.
-- **Tests**: portable xUnit tests exercise decoding, malformed input, identity matching, registry rejection, simulated errors/removal/timeouts/cancellation, redaction and archive contents.
+- **Tests**: portable xUnit tests exercise decoding, malformed input, identity matching, registry rejection, simulated errors/removal/timeouts/cancellation, redaction and archive contents. A separate harmless process fixture verifies real process IPC, deadline enforcement, cancellation and crash reporting.
 
 ## Worker and lifetime
 

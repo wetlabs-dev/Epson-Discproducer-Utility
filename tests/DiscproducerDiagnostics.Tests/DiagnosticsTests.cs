@@ -5,6 +5,7 @@ using DiscproducerDiagnostics.Core;
 using DiscproducerDiagnostics.Protocols;
 using DiscproducerDiagnostics.Diagnostics;
 using Xunit;
+using DiscproducerDiagnostics.Usb;
 namespace DiscproducerDiagnostics.Tests;
 public class DiagnosticsTests
 {
@@ -98,5 +99,33 @@ public class DiagnosticsTests
             foreach (var entry in zip.Entries) { using var reader = new StreamReader(entry.Open()); string s = reader.ReadToEnd(); Assert.DoesNotContain("secret123",s); Assert.DoesNotContain("736563726574313233",s); Assert.DoesNotContain("SIMULATED\\\\VID_",s); }
         }
         finally { File.Delete(path); }
+    }
+    private static WorkerClient ProcessFixture()
+    {
+        string runtime = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+        string root = Path.GetFullPath(Path.Combine(runtime,"..","..",".."));
+        string dotnet = Path.Combine(root, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+        return new(dotnet, [Path.Combine(AppContext.BaseDirectory,"worker","DiscproducerDiagnostics.TestWorker.dll")]);
+    }
+    [Fact] public async Task RealWorkerIpcRoundTrips()
+    {
+        var reply = await ProcessFixture().RunAsync(new("echo"),TimeSpan.FromSeconds(10),default);
+        Assert.Null(reply.Error);
+    }
+    [Fact] public async Task RealHungWorkerHasBoundedTimeout()
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        await Assert.ThrowsAsync<TimeoutException>(() => ProcessFixture().RunAsync(new("hang"),TimeSpan.FromMilliseconds(500),default));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10));
+    }
+    [Fact] public async Task RealWorkerCancellationPropagates()
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ProcessFixture().RunAsync(new("hang"),TimeSpan.FromSeconds(10),cancellation.Token));
+    }
+    [Fact] public async Task WorkerCrashIsReported()
+    {
+        var error = await Assert.ThrowsAsync<IOException>(() => ProcessFixture().RunAsync(new("crash"),TimeSpan.FromSeconds(10),default));
+        Assert.Contains("code 7",error.Message);
     }
 }
