@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../DiscproducerDiagnostics.Core/DiscproducerDiagnostics.Core.csproj" /></ItemGroup><ItemGroup><PackageReference Include="Serilog" Version="4.3.0" /></ItemGroup></Project>

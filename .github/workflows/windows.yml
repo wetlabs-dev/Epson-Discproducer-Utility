@@ -1,0 +1,33 @@
+name: Windows build and test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Debug build
+        run: dotnet build DiscproducerDiagnostics.sln -c Debug
+      - name: Release, tests, and self-contained package
+        shell: pwsh
+        run: ./scripts/build.ps1
+      - name: WPF launch smoke test
+        shell: pwsh
+        run: ./scripts/smoke-test.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DiscproducerDiagnostics-win-x64
+          path: artifacts/DiscproducerDiagnostics-win-x64.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: '**/TestResults/*.trx'
