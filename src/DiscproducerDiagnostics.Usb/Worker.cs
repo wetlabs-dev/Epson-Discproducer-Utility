@@ -16,6 +16,8 @@ public static class NativeWorker
         try
         {
             if (request.Operation == "scan") return new(Discovery: NativeDiscovery.Scan());
+            if (request.Operation == "descriptors") return new(Descriptors: HubDescriptorReader.Read(request.Path ?? ""));
+            if (request.Operation == "printers") { DiagnosticCommands.Authorize("spooler"); return new(Printers: PrinterQueues.Inspect()); }
             if (request.Operation is not ("probe" or "query")) throw new NotSupportedException("Unknown worker operation");
             // Re-enumerate to prevent stale paths or arbitrary CreateFile targets from being used.
             var device = NativeDiscovery.Scan(includeQueues: false).Devices.FirstOrDefault(d => d.InterfacePath != null && d.InterfacePath.Equals(request.Path, StringComparison.OrdinalIgnoreCase));
@@ -84,7 +86,7 @@ public sealed class UsbPrinterClassTransport(WorkerClient worker, string path) :
     public async Task ConnectAsync(CancellationToken token)
     {
         var r = await worker.RunAsync(new("probe", path), TimeSpan.FromSeconds(15), token);
-        if (r.Error != null) throw new IOException($"{r.Error} (Windows code {r.ErrorCode})");
+        if (r.Error != null) throw new Win32Exception(r.ErrorCode ?? 31, r.Error);
         Connected = true;
     }
     public Task DisconnectAsync() { Connected = false; return Task.CompletedTask; }

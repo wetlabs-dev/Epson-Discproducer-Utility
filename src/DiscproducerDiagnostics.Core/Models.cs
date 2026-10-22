@@ -5,6 +5,7 @@ public record Device(string Name, string InstanceId, string? InterfacePath, stri
     string Vid, string Pid, string[] HardwareIds, string[] CompatibleIds, string Manufacturer,
     string DriverProvider, string DriverVersion, string InterfaceNumber, uint ProblemCode, bool Simulated = false)
 {
+    public Dictionary<string,string> Properties { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public override string ToString() => $"{(Simulated ? "[SIMULATED] " : "")}{Name} • {Vid}:{Pid} • {InterfaceNumber} • {InstanceId}";
 }
 public record QueueStatus(string Name, string Port, string Driver, uint RawStatus, uint Jobs, string? InstanceId);
@@ -15,7 +16,7 @@ public record Exchange(string Command, byte[] Response, bool Success, int? Error
 public record LogEntry(DateTimeOffset Timestamp, string Transport, string Direction, string Command,
     string Hex, string Ascii, int Length, double DurationMs, bool Success, int? ErrorCode, string? Error, bool Simulated = false);
 public record WorkerRequest(string Operation, string? Path = null, string? Command = null);
-public record WorkerReply(Discovery? Discovery = null, Exchange? Exchange = null, string? Error = null, int? ErrorCode = null);
+public record WorkerReply(Discovery? Discovery = null, Exchange? Exchange = null, string? Error = null, int? ErrorCode = null, DescriptorReport? Descriptors = null, PrinterDetail[]? Printers = null);
 public sealed record CommandDefinition(string Id, string Description, uint Ioctl, int OutputLength, string ResponseFormat, string Source)
 {
     public string Transport => "Windows usbprint.sys DeviceIoControl";

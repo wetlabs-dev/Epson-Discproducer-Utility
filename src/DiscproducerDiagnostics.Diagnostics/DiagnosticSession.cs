@@ -4,6 +4,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DiscproducerDiagnostics.Core;
 using Serilog;
+using System.Diagnostics;
+using DiscproducerDiagnostics.Protocols;
 using Serilog.Core;
 using Serilog.Events;
 namespace DiscproducerDiagnostics.Diagnostics;
@@ -12,6 +14,15 @@ public sealed class DiagnosticSession : ILogEventSink, IDisposable
 {
     private readonly List<string> applicationLog = [];
     private bool disposed;
+    public List<Transaction> Transactions { get; } = [];
+    public event Action<Transaction>? TransactionAdded;
+    public void RecordTransaction(Transaction transaction)
+    {
+        Transactions.Add(transaction);
+        Logger.Information("Transaction {Id} {Command} {Outcome} code={Code}", transaction.Id,transaction.Command,transaction.Outcome,transaction.NativeError);
+        TransactionAdded?.Invoke(transaction);
+    }
+    public string ApplicationLog => string.Join(Environment.NewLine,applicationLog);
     public List<LogEntry> Communication { get; } = [];
     public event Action<LogEntry>? EntryAdded;
     public ILogger Logger { get; }
@@ -23,7 +34,7 @@ public sealed class DiagnosticSession : ILogEventSink, IDisposable
         Logger.Information("{Transport} {Direction} {Command} success={Success} bytes={Length} durationMs={Duration} code={Code} error={Error}", entry.Transport, entry.Direction, entry.Command, entry.Success, entry.Length, entry.DurationMs, entry.ErrorCode, entry.Error);
         EntryAdded?.Invoke(entry);
     }
-    public void Event(string command, string message, bool success = true) => Record(new(DateTimeOffset.Now, "Application", "EVENT", command, "", "", 0, 0, success, null, message));
+    public void Event(string command, string message, bool success = true) => Record(new(DateTimeOffset.UtcNow, "Application", "EVENT", command, "", "", 0, 0, success, null, message));
     public void Export(string file, Device? device, Fact[] facts, StatusResult[] statuses, bool redact)
     {
         using var zip = ZipFile.Open(file, ZipArchiveMode.Create);
@@ -38,7 +49,7 @@ public sealed class DiagnosticSession : ILogEventSink, IDisposable
         Json("usb-descriptors.json", new { Availability = "Unavailable", Reason = "Raw USB descriptors are not retrieved through the installed printer interface. PnP hardware/compatible IDs are in device-info.json.", Descriptors = Array.Empty<object>() });
         Json("printer-status.json", statuses);
         Json("communication-log.json", Communication);
-        Json("system-info.json", new { OS = Environment.OSVersion.VersionString, Runtime = Environment.Version.ToString(), Architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(), AppVersion = "1.0.0", ExportedAt = DateTimeOffset.Now, Redacted = redact });
+        Json("system-info.json", new { OS = Environment.OSVersion.VersionString, Runtime = Environment.Version.ToString(), Architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(), AppVersion = "1.0.0", ExportedAt = DateTimeOffset.UtcNow, Redacted = redact });
         using var log = new StreamWriter(zip.CreateEntry("diagnostics/application.log").Open(), Encoding.UTF8);
         log.Write(redact ? "Redacted export: free-form application messages omitted to prevent identifier leakage. See structured communication-log.json for timings, command IDs, lengths and result codes." : string.Join(Environment.NewLine, applicationLog));
     }
@@ -66,26 +77,43 @@ public static class Redaction
         else if (node is JsonArray array) foreach (var child in array) Apply(child);
     }
 }
-public sealed class LoggedTransport(IDeviceTransport inner, DiagnosticSession session) : IDeviceTransport
+public sealed class LoggedTransport(IDeviceTransport inner, DiagnosticSession session, Device? device = null) : IDeviceTransport
 {
     public bool Connected => inner.Connected;
-    public async Task ConnectAsync(CancellationToken token) { await inner.ConnectAsync(token); session.Event("connect", "Interface opened successfully; request/response not yet verified."); }
+    public async Task ConnectAsync(CancellationToken token)
+    {
+        var watch=Stopwatch.StartNew();var stamp=DateTimeOffset.UtcNow;
+        try
+        {
+            await inner.ConnectAsync(token);
+            session.RecordTransaction(new(Guid.NewGuid(),stamp,device?.InstanceId??"Unavailable","Windows printer interface probe",device?.InterfacePath??"Unavailable","Host API","interface-probe",[],[],null,watch.Elapsed.TotalMilliseconds,15000,"Success",null,null,"Interface handle opened; no identification or status response yet","Host handle probe",inner is MockTransport));
+            session.Event("connect", "Interface opened successfully; request/response not yet verified.");
+        }
+        catch(Exception e)
+        {
+            session.RecordTransaction(new(Guid.NewGuid(),stamp,device?.InstanceId??"Unavailable","Windows printer interface probe",device?.InterfacePath??"Unavailable","Host API","interface-probe",[],[],null,watch.Elapsed.TotalMilliseconds,15000,e is OperationCanceledException?"Cancelled":e is TimeoutException?"Timeout":"Failed",e is System.ComponentModel.Win32Exception w?w.NativeErrorCode:null,e.Message,"Interface access not established","Host handle probe",inner is MockTransport));throw;
+        }
+    }
     public async Task DisconnectAsync() { await inner.DisconnectAsync(); session.Event("disconnect", "Disconnected"); }
     public async Task<Exchange> QueryAsync(string commandId, TimeSpan timeout, CancellationToken token)
     {
         var command = CommandRegistry.Authorize(commandId);
+        var watch=Stopwatch.StartNew(); var timestamp=DateTimeOffset.UtcNow; var transactionId=Guid.NewGuid();
         // IOCTL is host API metadata, not invented USB setup bytes. Input payload is empty.
-        session.Record(new(DateTimeOffset.Now, command.Transport, "TX", $"{commandId} / IOCTL 0x{command.Ioctl:X8}; empty input", "", "", 0, 0, true, null, null, inner is MockTransport));
+        session.Record(new(DateTimeOffset.UtcNow, command.Transport, "TX", $"{commandId} / IOCTL 0x{command.Ioctl:X8}; empty input", "", "", 0, 0, true, null, null, inner is MockTransport));
         try
         {
             var r = await inner.QueryAsync(commandId, timeout, token);
             string ascii = new(r.Response.Select(b => b >= 32 && b <= 126 ? (char)b : '.').ToArray());
-            session.Record(new(DateTimeOffset.Now, command.Transport, "RX", commandId, Convert.ToHexString(r.Response), ascii, r.Response.Length, r.DurationMs, r.Success, r.ErrorCode, r.Error, r.Simulated));
+            session.Record(new(DateTimeOffset.UtcNow, command.Transport, "RX", commandId, Convert.ToHexString(r.Response), ascii, r.Response.Length, r.DurationMs, r.Success, r.ErrorCode, r.Error, r.Simulated));
+            var interpreted=ResponseInterpreter.Interpret(commandId,r.Response);
+            session.RecordTransaction(new(transactionId,timestamp,device?.InstanceId??"Unavailable",command.Transport,device?.InterfacePath??"Unavailable","Driver-owned; EP0 unobserved",commandId,[],r.Response,null,watch.Elapsed.TotalMilliseconds,timeout.TotalMilliseconds,r.Success?"Success":r.ErrorCode==1460?"Timeout":"Failed",r.ErrorCode,r.Error,interpreted.Text,r.Simulated?"SIMULATED":"Windows printer IOCTL; USB wire request unobserved",r.Simulated){ValidResponse=r.Success&&interpreted.Valid,Interpreted=r.Success&&interpreted.Valid});
             return r;
         }
         catch (Exception e)
         {
-            session.Record(new(DateTimeOffset.Now, command.Transport, "RX", commandId, "", "", 0, 0, false, null, e is OperationCanceledException ? "Cancelled" : e.Message, inner is MockTransport));
+            session.RecordTransaction(new(transactionId,timestamp,device?.InstanceId??"Unavailable",command.Transport,device?.InterfacePath??"Unavailable","Driver-owned",commandId,[],[],null,watch.Elapsed.TotalMilliseconds,timeout.TotalMilliseconds,e is OperationCanceledException?"Cancelled":"Failed",null,e.Message,"No response","Host API invocation; no wire evidence",inner is MockTransport));
+            session.Record(new(DateTimeOffset.UtcNow, command.Transport, "RX", commandId, "", "", 0, 0, false, null, e is OperationCanceledException ? "Cancelled" : e.Message, inner is MockTransport));
             throw;
         }
     }

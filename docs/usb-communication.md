@@ -6,7 +6,7 @@ The transport opens the interface with `GENERIC_READ`, shared read/write access,
 
 Two Microsoft-documented USB printer IOCTLs provide identity/status when the installed driver exposes them. Success is shown as a **driver request/response**, not an unrestricted vendor endpoint channel. The returned byte count and response are logged. Empty/truncated responses do not count as a valid identity/status result. USB class status does not prove the PP-100 can publish discs.
 
-The Windows spooler is a separate source. Candidate Epson queues are listed as uncorrelated, because this implementation cannot establish a verified queue-to-USB mapping. Queue names, matching driver names and `USB001` are not used as physical identity. No `OpenPrinter` handle is repurposed as a USB control channel.
+The Windows spooler is a separate source. The Windows Printer inspector attempts exact PnP instance/ancestry and container-ID correlation using data actually returned by the spooler. Missing evidence remains uncorrelated, and conflicting physical candidates remain ambiguous. Queue names, matching driver names and `USB001` are not sufficient physical identity. No `OpenPrinter` handle is repurposed as a USB control channel.
 
 ## When the installed driver blocks access
 
@@ -20,4 +20,4 @@ Safe next steps:
 4. With owner authorization on a non-production unit, capture known-safe identity/status traffic from supported software. Correlate requests with replies; distinguish cached metadata from real USB transactions.
 5. Review any additional read-only command and its driver requirements before adding it to the registry.
 
-Do not replace the driver with WinUSB/libusbK or issue arbitrary ESC/P commands. Raw descriptor retrieval through USB hub IOCTLs could be added separately after careful topology matching; it is not implemented here. The bundle explicitly marks descriptor bytes unavailable. A future WinUSB transport is appropriate only for a separately exposed, already-compatible interface that leaves Epson's publishing interface intact.
+Do not replace the driver with WinUSB/libusbK or issue arbitrary ESC/P commands. Version 1.1 implements descriptor retrieval through the parent USB hub after validating the port driver key before every request. See the [extended protocol reference](protocol-explorer.md). Driver/access failures remain explicit; endpoint descriptors do not grant endpoint access. A future WinUSB transport is appropriate only for a separately exposed, already-compatible interface that leaves Epson's publishing interface intact.

@@ -19,6 +19,7 @@ public static class Program
             output.WriteLine(JsonSerializer.Serialize(reply));
             return;
         }
+        if (args.Contains("--ui-self-test")) { UiSmokeTest.Run(); return; }
         var app = new Application();
         app.Run(new MainWindow());
     }

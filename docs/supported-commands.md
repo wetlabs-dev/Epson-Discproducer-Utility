@@ -1,6 +1,6 @@
 # Implemented read-only commands
 
-The only permitted device queries are the two entries below. Neither uses `WriteFile`, `WritePrinter`, print jobs, arbitrary endpoint transfers or vendor-specific command bytes.
+The original printer-driver queries are the two entries below. Version 1.1 adds verified read-only hub descriptor retrieval and Windows metadata operations; see the [extended protocol reference](protocol-explorer.md). Neither uses `WriteFile`, `WritePrinter`, print jobs, arbitrary endpoint transfers or vendor-specific command bytes.
 
 | Registry ID | Host operation | Input bytes | Output buffer and interpretation | Limitations |
 |---|---|---|---|---|

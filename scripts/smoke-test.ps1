@@ -50,3 +50,22 @@ try {
     if (-not $worker.HasExited) { $worker.Kill() }
     $worker.Dispose()
 }
+
+# Exercise data-bound tabs with the explicitly simulated transport, never hardware.
+$selfTest = [System.Diagnostics.ProcessStartInfo]::new()
+$selfTest.FileName = (Resolve-Path $Executable).Path
+$selfTest.Arguments = '--ui-self-test'
+$selfTest.UseShellExecute = $false
+$selfTest.RedirectStandardOutput = $true
+$selfTest.RedirectStandardError = $true
+$ui = [System.Diagnostics.Process]::Start($selfTest)
+try {
+    $out = $ui.StandardOutput.ReadToEndAsync()
+    $err = $ui.StandardError.ReadToEndAsync()
+    if (-not $ui.WaitForExit(30000)) { throw 'Simulated UI test timed out' }
+    Write-Output $out.Result
+    if ($ui.ExitCode -ne 0) { throw "Simulated UI failed: $($err.Result)" }
+} finally {
+    if (-not $ui.HasExited) { $ui.Kill() }
+    $ui.Dispose()
+}

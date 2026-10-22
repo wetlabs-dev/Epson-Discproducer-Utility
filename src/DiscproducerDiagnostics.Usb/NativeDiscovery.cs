@@ -15,6 +15,7 @@ public static class NativeDiscovery
     {
         var warnings = new List<string>();
         var paths = Interfaces();
+        var usbPaths = Interfaces(new Guid("a5dcbf10-6530-11d2-901f-00c04fb951ed"));
         var devices = new List<Device>();
         nint set = SetupDiGetClassDevsW(0, null, 0, 6); // PRESENT | ALLCLASSES
         if (set == -1) throw new Win32Exception();
@@ -29,12 +30,13 @@ public static class NativeDiscovery
                 string? usbId = new[] { id }.Concat(parents).FirstOrDefault(DeviceMatching.IsEpson);
                 if (usbId == null) continue;
                 string prop(uint key) => Property(set, data, key);
-                string driver = prop(9), provider = "Unavailable", version = "Unavailable";
+                string driver = prop(9), provider = "Unavailable", version = "Unavailable", inf = "Unavailable";
                 try
                 {
                     using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\" + driver, false);
                     provider = key?.GetValue("ProviderName") as string ?? provider;
                     version = key?.GetValue("DriverVersion") as string ?? version;
+                    inf = key?.GetValue("InfPath") as string ?? inf;
                 }
                 catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException) { warnings.Add("Driver registry metadata inaccessible"); }
                 uint problem = 0;
@@ -45,7 +47,14 @@ public static class NativeDiscovery
                 var matching = paths.Where(p => string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (matching.Length == 0) matching = [(id, (string?)null)];
                 foreach (var path in matching)
-                    devices.Add(new(name, id, path.Path, parents, vid, pid, Split(prop(1)), Split(prop(2)), prop(11), provider, version, mi, problem));
+                    devices.Add(new(name, id, path.Path, parents, vid, pid, Split(prop(1)), Split(prop(2)), prop(11), provider, version, mi, problem) { Properties = new(StringComparer.OrdinalIgnoreCase) {
+                        ["Service"] = prop(4), ["DriverKey"] = driver, ["InfPath"] = inf,
+                        ["LocationPaths"] = prop(35).Replace('\0', ';'), ["Location"] = prop(13),
+                        ["ContainerId"] = Container(data.DevInst), ["BusPortAddress"] = DwordProperty(set,data,28),
+                        ["Parent"] = parents.FirstOrDefault() ?? "Unavailable",
+                        ["PrinterInterfaceGuid"] = path.Path == null ? "Unavailable" : PrinterInterface.ToString(),
+                        ["UsbDeviceInterface"] = usbPaths.FirstOrDefault(p=>p.Id.Equals(id,StringComparison.OrdinalIgnoreCase)).Path ?? "Unavailable"
+                    } });
             }
         }
         finally { SetupDiDestroyDeviceInfoList(set); }
@@ -54,6 +63,23 @@ public static class NativeDiscovery
         catch (Win32Exception e) { queues = []; warnings.Add($"Spooler enumeration failed ({e.NativeErrorCode}): {e.Message}"); }
         return new(devices.ToArray(), queues, warnings.ToArray());
     }
+    internal static string Container(uint node)
+    {
+        var key = new PropertyKey { Format = new Guid("8c7ed206-3f8a-4827-b3ab-ae9e1faefc6c"), Id = 2 };
+        var bytes = new byte[16]; uint size = 16;
+        return CM_Get_DevNode_PropertyW(node,ref key,out uint type,bytes,ref size,0)==0 && type==13 && size==16 ? new Guid(bytes).ToString() : "Unavailable";
+    }
+    internal static string ContainerForId(string id)
+    {
+        uint node; return CM_Locate_DevNodeW(out node,id,0)==0 ? Container(node) : "Unavailable";
+    }
+    private static string DwordProperty(nint set, DevInfo data, uint property)
+    {
+        var b=new byte[4]; return SetupDiGetDeviceRegistryPropertyW(set,ref data,property,out uint type,b,4,out uint size)&&type==4&&size==4 ? BitConverter.ToUInt32(b).ToString() : "Unavailable";
+    }
+    [StructLayout(LayoutKind.Sequential)] private struct PropertyKey { public Guid Format; public uint Id; }
+    [DllImport("cfgmgr32.dll", CharSet=CharSet.Unicode)] private static extern uint CM_Get_DevNode_PropertyW(uint node,ref PropertyKey key,out uint type,byte[] data,ref uint size,uint flags);
+    [DllImport("cfgmgr32.dll", CharSet=CharSet.Unicode)] private static extern uint CM_Locate_DevNodeW(out uint node,string id,uint flags);
     private static string[] Split(string s) => s.Split('\0', StringSplitOptions.RemoveEmptyEntries);
     private static string Match(string s, string pattern) { var m = Regex.Match(s, pattern, RegexOptions.IgnoreCase); return m.Success ? m.Groups[1].Value.ToUpperInvariant() : "Unavailable"; }
     private static DevInfo NewDeviceInfo() => new() { Size = Marshal.SizeOf<DevInfo>() };
@@ -79,9 +105,9 @@ public static class NativeDiscovery
         }
         return ids.ToArray();
     }
-    private static List<(string Id, string? Path)> Interfaces()
+    internal static List<(string Id, string? Path)> Interfaces(Guid? interfaceGuid = null)
     {
-        Guid guid = PrinterInterface;
+        Guid guid = interfaceGuid ?? PrinterInterface;
         nint set = SetupDiGetClassDevsGuid(ref guid, null, 0, 0x12);
         if (set == -1) throw new Win32Exception();
         var result = new List<(string, string?)>();

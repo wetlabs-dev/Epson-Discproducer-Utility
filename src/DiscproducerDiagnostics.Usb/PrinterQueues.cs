@@ -4,7 +4,7 @@ using System.Runtime.Versioning;
 using DiscproducerDiagnostics.Core;
 namespace DiscproducerDiagnostics.Usb;
 [SupportedOSPlatform("windows")]
-internal static class PrinterQueues
+internal static partial class PrinterQueues
 {
     public static QueueStatus[] Read()
     {

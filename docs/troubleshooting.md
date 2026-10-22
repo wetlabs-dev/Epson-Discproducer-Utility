@@ -14,6 +14,8 @@
 | Ready queue but class error | Both sources are shown. Queue state can lag or refer to another device; candidate queues are explicitly uncorrelated. |
 | Serial unavailable | No recognized serial field in a successful IEEE 1284 response. The app deliberately does not guess from a Windows instance suffix. |
 | No log after closing | Logs are session memory only. Export before closing. |
-| Redacted export lacks bytes | Intentional. Turn redaction off only when the recipient needs raw diagnostics and you intend to share identifiers. Clipboard copying is always unredacted. |
+| Redacted export lacks bytes | Intentional. Choose FullForensic and confirm only when the recipient needs raw diagnostics and you intend to share identifiers/captures. Clipboard copying is always unredacted. |
 
 Cancellation may leave earlier timestamped observations on screen; it does not turn them into fresh measurements. Disconnect/reconnect before switching mock scenarios or devices. No printer configuration change is needed to run this utility.
+
+Hub access denied, missing parent/port or driver-key mismatch: retain Epson’s driver and export the failed evidence. USB standard GET_STATUS is deliberately unsupported; the descriptor IOCTL is not a general control-transfer channel. PCAPNG import warnings and limits are documented in [usb-capture.md](usb-capture.md).

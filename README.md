@@ -2,7 +2,7 @@
 
 A read-only Windows 11 x64 WPF application targeting .NET 10. It discovers Epson USB device nodes, reads Windows metadata, and attempts documented IEEE 1284 identification and USB printer-class status queries through the **existing Windows USB printer driver**. It never installs or replaces a driver, submits print jobs, or runs Epson maintenance commands.
 
-**Compatibility is conditional:** PP-100 hardware testing is still required. Discovery or opening an interface does not prove bidirectional USB communication. Successful queries establish a Windows driver request/response; the driver may cache information. The app does not claim to capture USB wire packets. Raw descriptors, firmware, fatal-error history, EEPROM and vendor-specific status are unavailable in version 1.
+**Compatibility is conditional:** PP-100 hardware testing is still required. Discovery or opening an interface does not prove bidirectional USB communication. Successful queries establish a Windows driver request/response; the driver may cache information. The app does not claim to capture USB wire packets. USB hub descriptors are retrieved when Windows permits verified hub/port access. Firmware, fatal-error history, EEPROM, direct standard GET_STATUS and vendor-specific status remain unavailable.
 
 ## Windows 11: download and run
 
@@ -12,11 +12,23 @@ A read-only Windows 11 x64 WPF application targeting .NET 10. It discovers Epson
 4. Leave **Simulation mode** off. Click **Scan for Devices**. Select the Epson node with a USB printer interface path if one is available. VID `04B8` identifies Epson; the PID is discovered, not assumed. Multiple rows can belong to one physical unit. Compare instance IDs and parent chains rather than relying on names alone.
 5. Click **Connect**. The app checks interface access and requests IEEE 1284 identity and printer-class status. Read **Device information**, **Status**, and **Communication log**. An actual serial number appears only if the identification response exposes a recognized serial field; a PnP instance suffix is never treated as a serial number.
 6. Click **Refresh Status** for a new observation. Results are snapshots, not continuous monitoring. If you unplug the device, refresh to detect removal. **Cancel** stops an active operation; **Disconnect** ends the logical session. Handles are closed after each operation.
-7. Click **Export Diagnostic Bundle…** to save a ZIP. Redaction is enabled by default and removes identifiers, raw bytes and free text that could contain identifiers. Uncheck it only when intentionally sharing the full diagnostic evidence. Copying an individual log entry is explicitly **unredacted**.
+7. Click **Run Full Diagnostics** to collect interfaces/descriptors, queues/jobs and safe identity/status responses with separate progress milestones, then save the offered bundle. **Export Diagnostic Bundle…** is also available at any time. Choose RedactedSummary, TechnicalDiagnostics (default), or explicitly confirmed FullForensic. Individual copies and binary/JSON saves are **unredacted**.
 
 **If no supported interface is exposed:** the app still displays metadata and reports the query limitation. Do not use Zadig, WinUSB or libusbK to replace Epson's driver. See [troubleshooting](docs/troubleshooting.md).
 
 **Without a printer:** enable Simulation mode, choose a scenario, Scan, then Connect. Disconnect before changing scenarios. Every mock device and response is marked simulated; PID `FFFF` and serial `DEMO-ONLY-0001` are invented test fixtures, never PP-100 identifiers.
+
+
+## Protocol investigation features (1.1)
+
+- **USB Interfaces**: expandable PnP/composite topology, driver service/INF/provider/version, container/location data, and actual device/configuration/string/interface/endpoint descriptors through the Windows hub API. Driver-key validation prevents querying an unrelated hub port. Access limitations remain explicit.
+- **Protocol Explorer**: allowlisted printer identity/status, hub descriptors, PnP and spooler inspection. Displays framing, source, requirements and interpreted outcomes. Standard GET_STATUS is explicitly unsupported on the current driver path; no arbitrary sender is exposed.
+- **Windows Printer**: queue/driver/port monitor, bidirectional configuration, pending jobs and evidence-based instance/container association with ambiguity reporting.
+- **Communication Log**: correlated host transactions, exact buffers, bounded offset/hex/ASCII view, filters, copy, binary and JSON save.
+- **USB Capture**: built-in offline USBPcap PCAPNG import, filters, URB correlation, setup/payload view and comparison to application transactions. No Wireshark dependency to import; no capture driver installation or packet replay.
+- **Diagnostic bundles**: schema 2 structured evidence and generated next steps, with three privacy modes. No claims that arbitrary binary data can be safely redacted.
+
+Start with the [first hardware test guide](docs/first-hardware-test.md), [capture guide](docs/usb-capture.md), [protocol reference](docs/protocol-explorer.md), and [export/privacy specification](docs/export-schema.md).
 
 ## Build from source (developers only)
 
