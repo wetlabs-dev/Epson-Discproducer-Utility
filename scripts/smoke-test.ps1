@@ -1,13 +1,19 @@
 param([string]$Executable = "$PSScriptRoot/../artifacts/win-x64/DiscproducerDiagnostics.App.exe")
 $ErrorActionPreference = 'Stop'
 # Launches the real WPF window; no scan or hardware query is triggered.
-$app = Start-Process -FilePath (Resolve-Path $Executable) -PassThru
+$stderrPath = Join-Path ([System.IO.Path]::GetTempPath()) ('discproducer-smoke-' + [guid]::NewGuid() + '.log')
+$app = Start-Process -FilePath (Resolve-Path $Executable) -PassThru -RedirectStandardError $stderrPath
 try {
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     do {
         Start-Sleep -Milliseconds 250
         $app.Refresh()
-        if ($app.HasExited) { throw "Application exited before showing a window: $($app.ExitCode)" }
+        if ($app.HasExited) {
+            if (Test-Path $stderrPath) { Get-Content $stderrPath | Write-Output }
+            Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-2)} -ErrorAction SilentlyContinue |
+                Where-Object { $_.Message -like '*DiscproducerDiagnostics*' } | ForEach-Object { Write-Output $_.Message }
+            throw "Application exited before showing a window: $($app.ExitCode)"
+        }
     } while ($app.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
     if ($app.MainWindowHandle -eq 0) { throw 'WPF main window did not open' }
     if ($app.MainWindowTitle -ne 'Discproducer Diagnostics') { throw 'Unexpected window title' }
@@ -23,7 +29,7 @@ try {
 # Verify the packaged WinExe's redirected JSON worker path and actual native enumeration.
 $start = [System.Diagnostics.ProcessStartInfo]::new()
 $start.FileName = (Resolve-Path $Executable).Path
-$start.ArgumentList.Add('--worker')
+$start.Arguments = '--worker'
 $start.UseShellExecute = $false
 $start.CreateNoWindow = $true
 $start.RedirectStandardInput = $true
