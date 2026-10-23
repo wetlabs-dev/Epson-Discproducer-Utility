@@ -35,3 +35,6 @@ try {
   if ($LASTEXITCODE -ne 2) { throw 'CLI accepted a hardware operation' }
   Write-Host 'Packaged offline CLI inspect/analyze/compare/report/validate/errors passed.'
 } finally { Remove-Item $work -Recurse -Force }
+
+# The final negative test intentionally exits 2; do not leak it to the CI shell.
+$global:LASTEXITCODE = 0
