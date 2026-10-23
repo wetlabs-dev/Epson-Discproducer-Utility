@@ -71,3 +71,6 @@ The non-UI libraries and tests target `net10.0`; Windows native methods execute 
 - [Verification checklist and current evidence](docs/verification.md)
 
 The MIT-licensed Serilog and xUnit dependencies are restored from NuGet with their own license metadata. This project is an independent diagnostic utility, not an Epson product.
+
+
+[v1.3.1 response compatibility update](docs/release-notes-1.3.1.md) accepts observed one-byte driver status replies and preserves identity framing warnings. [First PP-100 error-session analysis](docs/research/cap1-analysis.md).

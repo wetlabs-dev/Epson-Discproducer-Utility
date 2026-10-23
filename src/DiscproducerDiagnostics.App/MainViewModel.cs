@@ -152,6 +152,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged, IDisposable
         bool validIdentity = Facts.Any(f => f.Name == "Model" && f.Source.Contains("IEEE 1284") && f.Value != "Unavailable" && f.Availability == "Reported");
         bool validStatus = status.Availability != "Unavailable";
         Connection = d.Simulated ? "SIMULATED results • not hardware evidence" : !connected ? "Device disconnected / unavailable" : validIdentity || validStatus ? "Driver request/response succeeded • USB wire traffic/caching not independently verified" : "Interface opened • no valid identification/status response obtained";
+        if(validStatus) Notice = validIdentity ? "Identity and status decoded; detailed PP-100 mechanism state remains unavailable." : "Status decoded. Identity fields may have framing warnings; inspect Device information and Communication Log.";
         if (!validIdentity && !validStatus) Notice = "Queries failed or returned malformed data. Inspect the log for Windows error codes; retain Epson's driver.";
     }
     private void AddMetadata(Device d)

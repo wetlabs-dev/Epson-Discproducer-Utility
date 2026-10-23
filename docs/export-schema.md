@@ -1,6 +1,6 @@
 # Diagnostic export schema 3
 
-The main export uses `BundleExporter` and application version 1.2.0. It writes manifest/summary, device identity/PnP/descriptors/interfaces/endpoints, printer queue/driver/status/jobs, communication JSON/text, capture analysis, application log, supported/failed operations and recommended-next-steps Markdown. Successful full diagnostics opens the save dialog; cancellation leaves accumulated observations available for manual export. No export is silently uploaded.
+The main export uses `BundleExporter` and application version 1.3.1. It writes manifest/summary, device identity/PnP/descriptors/interfaces/endpoints, printer queue/driver/status/jobs, communication JSON/text, capture analysis, application log, supported/failed operations and recommended-next-steps Markdown. Successful full diagnostics opens the save dialog; cancellation leaves accumulated observations available for manual export. No export is silently uploaded.
 
 - **RedactedSummary**: aggregate transaction/interface/endpoint/capture counts and safe status/timing data; no raw payloads, serials, device paths, queue/document names or free-text errors.
 - **TechnicalDiagnostics** (default): adds safe per-transaction timing, result codes, byte lengths, validity flags and decoded endpoint/capture metadata. Identifying strings and arbitrary binary payloads are omitted, not partially anonymized.
@@ -16,3 +16,5 @@ Preferences at `%LOCALAPPDATA%\DiscproducerDiagnostics\preferences.json` store t
 Schema 3 adds a stable research SessionId, hardware verification status, imported capture hash, raw-response availability and structured error categories/HRESULTs. `evidence-sha256.json` indexes every raw request/response file and original capture in forensic mode. `research/session.json` contains research metadata only in forensic mode; other modes retain only session ID and an omission notice. No job metadata (including timestamps/pages/size) is included in either redacted mode.
 
 Offline Evidence accepts schema 2 or 3. It checks archive names, duplicates, expanded size (256 MiB total / 128 MiB per entry), count (10,000) and available raw hashes without extraction. All retained documents can be reviewed; forensic identity/topology/transaction tabs reconstruct supported views. Missing redacted data remains unavailable. Imported views never replace live device state. Text documents over 16 MiB are explicitly omitted from display. Hashes detect accidental changes, not authenticated authorship.
+
+`ResponseWarning` indicates recoverable identity text with unverified framing: `ValidResponse=false`, `Interpreted=true`. It is distinct from a fully valid response and preserves all original bytes in forensic mode. Historical imports are not reclassified.

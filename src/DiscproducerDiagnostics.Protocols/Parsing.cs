@@ -4,6 +4,10 @@ using DiscproducerDiagnostics.Core;
 namespace DiscproducerDiagnostics.Protocols;
 public record Identification(Dictionary<string,string> Fields, string Raw, string[] Warnings)
 {
+    // A framing warning never upgrades the reply to a fully valid identity.
+    public bool UsableWithWarning => Warnings.Length==1 && Warnings[0].StartsWith("Invalid or truncated length prefix",StringComparison.Ordinal)
+        && Raw.EndsWith(';') && Raw.All(c=>c>=32 && c<=126)
+        && Find("MFG","MANUFACTURER")!="Unavailable" && Find("MDL","MODEL")!="Unavailable";
     public string Find(params string[] aliases) => aliases.Select(a => Fields.GetValueOrDefault(a)).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? "Unavailable";
 }
 public static class Ieee1284
@@ -32,6 +36,7 @@ public static class Ieee1284
 }
 public static class StatusDecoder
 {
+    public static bool IsSupportedReply(ReadOnlySpan<byte> bytes) => bytes.Length is 1 or 4;
     public static string Port(byte status)
     {
         var flags = new List<string>();
@@ -71,7 +76,7 @@ public sealed class PrinterProtocol(IDeviceTransport transport, TimeSpan timeout
         var id = Ieee1284.Parse(response.Response);
         var result = new List<Fact>();
         foreach (var (name,value) in new[] { ("Manufacturer",id.Find("MFG","MANUFACTURER")),("Model",id.Find("MDL","MODEL")),("Serial number",id.Find("SN","SERN","SERIALNUMBER","SERIAL NUMBER")),("Command languages",id.Find("CMD","COMMAND SET")),("Description",id.Find("DES","DESCRIPTION")),("Class",id.Find("CLS","CLASS")) })
-            result.Add(new(name, value, source, value == "Unavailable" ? "Unavailable" : id.Warnings.Length > 0 ? "Unverified malformed response" : "Reported"));
+            result.Add(new(name, value, source, value == "Unavailable" ? "Unavailable" : id.Warnings.Length > 0 ? "Observed text; identity framing unverified" : "Reported"));
         result.Add(new("Identity parsing", id.Warnings.Length == 0 ? "Valid fields parsed" : string.Join("; ",id.Warnings), source));
         return result.ToArray();
     }
@@ -79,6 +84,6 @@ public sealed class PrinterProtocol(IDeviceTransport transport, TimeSpan timeout
     {
         var r = await transport.QueryAsync("port-status", timeout, token);
         string source = r.Simulated ? "SIMULATED USB printer class" : "USB printer class via Windows USB printer driver";
-        return new(source, DateTimeOffset.Now, Convert.ToHexString(r.Response), r.Success && r.Response.Length == 4 ? StatusDecoder.Port(r.Response[0]) : "Unavailable", r.Success && r.Response.Length == 4 ? "Driver-reported; may be cached" : "Unavailable", r.Error ?? (r.Response.Length != 4 ? "Expected exactly one DWORD status response" : null));
+        return new(source, DateTimeOffset.Now, Convert.ToHexString(r.Response), r.Success && StatusDecoder.IsSupportedReply(r.Response) ? ResponseInterpreter.Interpret("port-status",r.Response).Text : "Unavailable", r.Success && StatusDecoder.IsSupportedReply(r.Response) ? "Driver-reported; may be cached" : "Unavailable", r.Error ?? (!StatusDecoder.IsSupportedReply(r.Response) ? "Expected one returned status byte or four-byte DWORD" : null));
     }
 }

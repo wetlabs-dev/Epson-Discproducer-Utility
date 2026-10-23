@@ -9,7 +9,7 @@ The local Debug and Release cross-builds passed with zero warnings/errors using 
 - [ ] Compare discovered VID/PID, interface path and device instance ID with Device Manager.
 - [ ] If multiple devices/interfaces exist, verify the selected node/parent relationship.
 - [ ] Obtain IEEE 1284 bytes, parse model/serial, and independently compare the serial label when exposed.
-- [ ] Obtain a four-byte printer status reply; compare documented class bits with supported software without inducing unsafe device errors.
+- [ ] Obtain a one-byte or four-byte printer status reply; compare documented class bits with supported software without inducing unsafe device errors.
 - [ ] Verify access-denied/unsupported handling if the driver does not expose these IOCTLs.
 - [ ] Disconnect the idle printer, refresh, verify explicit removal and reconnect handling.
 - [ ] Cancel a query and confirm the application remains responsive.
@@ -28,3 +28,6 @@ Known limits: no physical PP-100 test; no automatic identity across identical un
 
 
 v1.3 local validation: 142 portable tests passed, preserving all 95 baseline tests. Debug and Release cross-builds passed with zero warnings/errors; actual CLI process checks passed for inspect, analyze, compare, report, validate and errors. Windows validation passed for implementation commit `a93182d`: Debug/Release builds, all 142 tests, populated toolkit GUI smoke and all packaged CLI verbs. [Verification run and Windows x64 package](https://github.com/wetlabs-dev/Epson-Discproducer-Utility/actions/runs/39982952607). The added Wireshark GPL-licensed Linux USB fixture verifies unsupported-link handling, not USBPcap decoding; the existing USBPcap fixture retains its independent TShark comparison. No new fixture is presented as PP-100 hardware evidence.
+
+
+v1.3.1 adds response compatibility regressions for one-byte/DWORD status, unchanged output capacity, failed APIs with returned bytes, retained identity framing warnings, and logger/protocol agreement. Local suite: 153 passing tests. Windows verification runs on the release-fix branch before main is updated. See [cap1 research](research/cap1-analysis.md) for the limited physical evidence; broad PP-100 compatibility remains unverified.

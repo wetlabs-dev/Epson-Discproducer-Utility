@@ -15,7 +15,7 @@ public static class DiagnosticCommands
     private const string Ms = "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/";
     public static IReadOnlyList<DiagnosticCommandDefinition> All { get; } = Array.AsReadOnly(new[] {
         new DiagnosticCommandDefinition("ieee1284", "GET_DEVICE_ID / IEEE 1284", "Read printer identification through the installed printer driver.", "USB Printer Class", "usbprint.sys", "IOCTL 0x220034; empty input. USB setup packet is driver-owned and unobserved.", "Length-prefixed IEEE 1284 fields", Ms+"usbprint/ni-usbprint-ioctl_usbprint_get_1284_id", "Accessible GUID_DEVINTERFACE_USBPRINT"),
-        new DiagnosticCommandDefinition("port-status", "GET_PORT_STATUS", "Read the documented printer-class status bits.", "USB Printer Class", "usbprint.sys", "IOCTL 0x220030; empty input. No bulk request bytes.", "DWORD; class bits in low byte", Ms+"usbprint/ni-usbprint-ioctl_usbprint_get_lpt_status", "Accessible GUID_DEVINTERFACE_USBPRINT"),
+        new DiagnosticCommandDefinition("port-status", "GET_PORT_STATUS", "Read the documented printer-class status bits.", "USB Printer Class", "usbprint.sys", "IOCTL 0x220030; empty input. No bulk request bytes.", "Four-byte output buffer; one-byte or DWORD reply; class bits in low byte", Ms+"usbprint/ni-usbprint-ioctl_usbprint_get_lpt_status", "Accessible GUID_DEVINTERFACE_USBPRINT"),
         new DiagnosticCommandDefinition("descriptors", "GET_DESCRIPTOR — device, configurations and strings", "Read descriptors through the parent USB hub, validating the port's driver key first.", "USB standard", "Windows USB hub", "IOCTL 0x220410; USB_DESCRIPTOR_REQUEST. Fixed GET_DESCRIPTOR; indexes taken only from returned descriptors.", "Device/configuration/string descriptors; all actual host requests retained", Ms+"usbioctl/ns-usbioctl-_usb_descriptor_request", "Verified parent hub + connection index + matching driver key"),
         new DiagnosticCommandDefinition("pnp", "Windows device properties", "Enumerate current PnP metadata and driver bindings.", "Windows metadata", "SetupAPI / Configuration Manager", "Windows API call; no observed USB bytes", "Device properties and topology", "https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdevicepropertyw", "Present Epson device"),
         new DiagnosticCommandDefinition("spooler", "Windows printer queues and jobs", "Inspect Epson candidate queues and read-only job/driver information.", "Windows spooler", "Winspool", "EnumPrinters/GetPrinterDriver/EnumJobs/GetPrinterDataEx; no USB setup packet", "Queue, driver, jobs and association evidence", "https://learn.microsoft.com/en-us/windows/win32/printdocs/enumprinters", "Local spooler accessible"),
@@ -53,7 +53,7 @@ public record Transaction(Guid Id, DateTimeOffset TimestampUtc, string DeviceId,
 {
     public DiagnosticError? Failure => Successful ? null : ErrorClassifier.Classify(
         Outcome == "Cancelled" ? new OperationCanceledException(Error) : Outcome == "Timeout" ? new TimeoutException(Error) :
-        Outcome == "InvalidResponse" ? new FormatException(Error ?? "Malformed response") :
+        Outcome is "InvalidResponse" or "ResponseWarning" ? new FormatException(Error ?? "Malformed response") :
         NativeError.HasValue ? new System.ComponentModel.Win32Exception(NativeError.Value, Error) : new IOException(Error ?? "Operation incomplete"),Command);
     public bool ApiIssued { get; init; } = true;
     public bool ValidResponse { get; init; }

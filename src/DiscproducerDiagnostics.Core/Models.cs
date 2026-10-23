@@ -29,7 +29,7 @@ public static class CommandRegistry
     private static readonly Dictionary<string, CommandDefinition> Commands = new(StringComparer.Ordinal)
     {
         ["ieee1284"] = new("ieee1284", "Read IEEE 1284 identity", 0x220034, 4094, "Two-byte length prefix + IEEE 1284 fields", "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usbprint/ni-usbprint-ioctl_usbprint_get_1284_id"),
-        ["port-status"] = new("port-status", "Read printer class status", 0x220030, 4, "DWORD; low byte has USB printer class status bits", "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usbprint/ni-usbprint-ioctl_usbprint_get_lpt_status")
+        ["port-status"] = new("port-status", "Read printer class status", 0x220030, 4, "Four-byte output buffer; one-byte or DWORD reply; low byte has class status bits", "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usbprint/ni-usbprint-ioctl_usbprint_get_lpt_status")
     };
     public static CommandDefinition Authorize(string id) { DiagnosticCommands.Authorize(id); return Commands.TryGetValue(id, out var c) ? c : throw new NotSupportedException("Unknown native command rejected by the read-only registry."); }
 }
