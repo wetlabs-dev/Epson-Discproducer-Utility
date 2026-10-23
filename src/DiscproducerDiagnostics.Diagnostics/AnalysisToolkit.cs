@@ -67,7 +67,7 @@ public static class Fingerprinting
         var candidates=reports.SelectMany((r,i)=>CaptureAnalysis.Reconstruct(r).Select(t=>(Capture:i,Transfer:t)))
             .GroupBy(x=>CaptureAnalysis.Signature(x.Transfer.Request)).OrderBy(g=>g.Key,StringComparer.Ordinal).Take(128)
             .Select(g=>new {Framing=g.Key,Counts=Enumerable.Range(0,reports.Count).Select(i=>g.Count(x=>x.Capture==i)).ToArray(),
-                Bytes=ByteAnalysis.Profile(g.Take(32).Select(x=>x.Transfer.Payload).ToArray(),token),
+                Bytes=ByteAnalysis.Profile(g.GroupBy(x=>x.Capture).SelectMany(c=>c.Take(32/reports.Count)).Select(x=>x.Transfer.Payload).ToArray(),token),
                 Status="Cross-session similarity hypothesis only; device identity and clocks require independent association"}).ToArray();
         return new {SchemaVersion=1,Captures=analyses,CandidateComparisons=candidates};
     }

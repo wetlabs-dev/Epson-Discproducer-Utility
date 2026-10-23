@@ -33,6 +33,14 @@ public class ToolkitTests
     }
     [Fact] public void FingerprintingRetainsIncompleteWarning()=>Assert.False(Fingerprinting.Analyze(Capture()).Complete);
     [Fact] public void MultipleCaptureComparisonHasEvidenceCounts(){var result=JsonSerializer.Serialize(Fingerprinting.Compare([Capture(),Capture(),Capture()]));Assert.Contains("Counts",result);Assert.Contains("Cross-session similarity hypothesis",result);}
+    [Fact] public void ComparisonSamplesEverySessionEvenWhenBaselineIsLong()
+    {
+        var p=new CapturePacket(1,0,0,null,1,2,0x81,"IN","Bulk",1,0,false,null,[],[1],1,null);
+        var a=new CaptureReport("baseline","A",0,Enumerable.Range(1,40).Select(i=>p with{Number=i,UrbId=(ulong)i}).ToArray(),[],true);
+        var b=a with{FileName="error",Packets=[p with{Payload=[2]}]};
+        using var json=JsonDocument.Parse(JsonSerializer.Serialize(Fingerprinting.Compare([a,b])));
+        Assert.Equal(2,json.RootElement.GetProperty("CandidateComparisons")[0].GetProperty("Bytes").GetProperty("Offsets")[0].GetProperty("Distinct").GetInt32());
+    }
     [Fact] public void ContextsDoNotMergeIdenticalDevices()
     {
         var c=Capture();var p=c.Packets[0];var report=c with{Packets=[p,p with{Number=2,Address=99}]};Assert.Equal(2,Fingerprinting.Analyze(report).Groups.Length);

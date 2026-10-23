@@ -39,7 +39,7 @@ Fingerprints group by capture section/interface/bus/address, transport/type, end
 
 Byte profiles report input lengths, non-overlapping common prefix/suffix, byte-value counts, missing sample counts, Shannon entropy in bits, adjacent-sample change frequency, and candidate stable/variable-region boundaries. Two differing observations do not identify a field meaning or establish independent reproduction. One sample is explicitly labeled. Cross-session comparison retains each capture's context; matching frame signatures never establish physical identity or synchronized clocks.
 
-Bounds: 128 fingerprint groups/sequences, first 32 samples per fingerprint or comparison group, 1024 byte offsets per profile; direct filtered profile uses at most 512 payload samples. Full prefixes/suffixes and lengths are measured, but offsets beyond the displayed range are explicitly marked truncated. Export JSON preserves the bounded analysis; GUI previews are capped at 131072 characters. Limits are not claims that remaining evidence was inspected.
+Bounds: 128 fingerprint groups/sequences, first 32 samples per fingerprint; comparison groups allocate the 32-sample budget evenly across input sessions, 1024 byte offsets per profile; direct filtered profile uses at most 512 payload samples. Full prefixes/suffixes and lengths are measured, but offsets beyond the displayed range are explicitly marked truncated. Export JSON preserves the bounded analysis; GUI previews are capped at 131072 characters. Limits are not claims that remaining evidence was inspected.
 
 ## Timeline
 
