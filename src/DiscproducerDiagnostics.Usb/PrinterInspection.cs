@@ -23,14 +23,15 @@ internal static partial class PrinterQueues
                 if(code==0 && type is 1 or 2 && size<=data.Length) { instance=Encoding.Unicode.GetString(data,0,(int)size).TrimEnd('\0'); container=NativeDiscovery.ContainerForId(instance); }
                 else errors.Add($"PnPData/DeviceInstanceId unavailable ({code}); queue association not assumed");
                 GetPrinterW(handle,2,0,0,out uint needed);
-                if(needed>0 && needed<4*1024*1024)
+                if(needed>=Marshal.SizeOf<PrinterInfo>() && needed<4*1024*1024)
                 {
                     nint buffer=Marshal.AllocHGlobal((int)needed);
                     try { if(GetPrinterW(handle,2,buffer,needed,out _)) {var p=Marshal.PtrToStructure<PrinterInfo>(buffer);processor=S(p.Processor);attributes=p.Attributes;} else errors.Add($"GetPrinter: {Marshal.GetLastWin32Error()}"); }
                     finally {Marshal.FreeHGlobal(buffer);}
                 }
+                else errors.Add($"GetPrinter metadata unavailable ({Marshal.GetLastWin32Error()})");
                 GetPrinterDriverW(handle,null,6,0,0,out needed);
-                if(needed>0 && needed<4*1024*1024)
+                if(needed>=Marshal.SizeOf<DriverInfo6>() && needed<4*1024*1024)
                 {
                     nint buffer=Marshal.AllocHGlobal((int)needed);
                     try
@@ -61,6 +62,7 @@ internal static partial class PrinterQueues
         try
         {
             if(!EnumJobsW(handle,0,5000,2,buffer,size,out _,out uint count))throw new Win32Exception();
+            if(count>size/Marshal.SizeOf<JobInfo2>())throw new Win32Exception(13,"Invalid job array count");
             var jobs=new List<PrinterJob>();
             for(int i=0;i<count;i++)
             {
@@ -75,9 +77,10 @@ internal static partial class PrinterQueues
     private static Dictionary<string,string> PortMonitors()
     {
         var result=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
-        EnumPortsW(null,2,0,0,out uint size,out _); if(size==0||size>4*1024*1024)return result;
+        bool ok=EnumPortsW(null,2,0,0,out uint size,out _); if(!ok && Marshal.GetLastWin32Error()!=122)throw new Win32Exception();
+        if(size==0)return result; if(size>4*1024*1024)throw new Win32Exception(8,"Port metadata exceeds limit");
         nint buffer=Marshal.AllocHGlobal((int)size);
-        try {if(EnumPortsW(null,2,buffer,size,out _,out uint count))for(int i=0;i<count;i++){var p=Marshal.PtrToStructure<PortInfo2>(buffer+i*Marshal.SizeOf<PortInfo2>());result[S(p.Name)]=S(p.Monitor);}}
+        try {if(!EnumPortsW(null,2,buffer,size,out _,out uint count))throw new Win32Exception(); if(count>size/Marshal.SizeOf<PortInfo2>())throw new Win32Exception(13,"Invalid port array count"); for(int i=0;i<count;i++){var p=Marshal.PtrToStructure<PortInfo2>(buffer+i*Marshal.SizeOf<PortInfo2>());result[S(p.Name)]=S(p.Monitor);}}
         finally{Marshal.FreeHGlobal(buffer);} return result;
     }
     [StructLayout(LayoutKind.Sequential)] private struct DriverInfo6 {public uint Version;public nint Name,Environment,DriverPath,DataFile,ConfigFile,HelpFile,DependentFiles,MonitorName,DefaultDataType,PreviousNames;public uint DateLow,DateHigh;public ulong DriverVersion;public nint Manufacturer,Url,HardwareId,Provider;}

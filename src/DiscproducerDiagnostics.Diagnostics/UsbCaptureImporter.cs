@@ -72,7 +72,7 @@ public static class UsbCaptureImporter
         }
         if(section<0)Warn("No valid PCAPNG section");
         Correlate(packets,warnings);
-        complete &= !packets.Any(p=>p.Correlation is "Request without completion" or "Completion without request" or "Ambiguous repeated URB ID");
+        complete &= !packets.Any(p=>p.Correlation is "Request without completion" or "Completion without request" or "Ambiguous repeated URB ID" or "Intermediate without request" or "Unmatched");
         return new(Path.GetFileName(name),Convert.ToHexString(SHA256.HashData(file)),file.Length,packets.ToArray(),warnings.ToArray(),complete);
     }
     private static CapturePacket DecodePacket(ReadOnlySpan<byte> data,int number,int section,uint iface,DateTimeOffset? time,int original)
@@ -83,6 +83,7 @@ public static class UsbCaptureImporter
         uint declared=U32(data,23,true);int available=data.Length-header;int count=(int)Math.Min(declared,(uint)available);
         string? warning=declared>available||original>data.Length?"Truncated captured payload":null;
         byte[] payload=data.Slice(header,count).ToArray(),setup=[];byte? stage=transfer==2?data[27]:null;
+        if(transfer>3 || stage is >3) warning="Unsupported transfer type or control stage; raw bytes retained";
         byte endpoint=data[21]; string direction=(endpoint&128)!=0?"IN":"OUT";
         if(stage==0)
         {
@@ -101,12 +102,13 @@ public static class UsbCaptureImporter
             bool end=p.Stage is 2 or 3 || (p.Stage==null&&p.Completion);
             if(p.Stage==1)
             {
-                if(pending.TryGetValue(key,out int begin))packets[i]=p with{RelatedPacket=packets[begin].Number,Correlation="Intermediate control data stage",Direction=packets[begin].Direction};
+                if(!ambiguous.Contains(key)&&pending.TryGetValue(key,out int begin))packets[i]=p with{RelatedPacket=packets[begin].Number,Correlation="Intermediate control data stage",Direction=packets[begin].Direction};
+                else packets[i]=p with{Correlation="Intermediate without request"};
                 continue;
             }
             if(end)
             {
-                if(ambiguous.Remove(key)){pending.Remove(key);packets[i]=p with{Correlation="Ambiguous repeated URB ID"};continue;}
+                if(ambiguous.Remove(key)){if(pending.Remove(key,out int ambiguousStart))packets[ambiguousStart]=packets[ambiguousStart] with{Correlation="Ambiguous repeated URB ID"}; packets[i]=p with{Correlation="Ambiguous repeated URB ID"};continue;}
                 if(pending.Remove(key,out int start))
                 {
                     var request=packets[start];double? duration=p.TimestampUtc>=request.TimestampUtc?(p.TimestampUtc-request.TimestampUtc)?.TotalMilliseconds:null;

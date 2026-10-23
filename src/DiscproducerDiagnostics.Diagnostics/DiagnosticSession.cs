@@ -18,6 +18,7 @@ public sealed class DiagnosticSession : ILogEventSink, IDisposable
     public event Action<Transaction>? TransactionAdded;
     public void RecordTransaction(Transaction transaction)
     {
+        if (Transactions.Any(t => t.Id == transaction.Id)) return;
         Transactions.Add(transaction);
         Logger.Information("Transaction {Id} {Command} {Outcome} code={Code}", transaction.Id,transaction.Command,transaction.Outcome,transaction.NativeError);
         TransactionAdded?.Invoke(transaction);
@@ -107,12 +108,12 @@ public sealed class LoggedTransport(IDeviceTransport inner, DiagnosticSession se
             string ascii = new(r.Response.Select(b => b >= 32 && b <= 126 ? (char)b : '.').ToArray());
             session.Record(new(DateTimeOffset.UtcNow, command.Transport, "RX", commandId, Convert.ToHexString(r.Response), ascii, r.Response.Length, r.DurationMs, r.Success, r.ErrorCode, r.Error, r.Simulated));
             var interpreted=ResponseInterpreter.Interpret(commandId,r.Response);
-            session.RecordTransaction(new(transactionId,timestamp,device?.InstanceId??"Unavailable",command.Transport,device?.InterfacePath??"Unavailable","Driver-owned; EP0 unobserved",commandId,[],r.Response,null,watch.Elapsed.TotalMilliseconds,timeout.TotalMilliseconds,r.Success?"Success":r.ErrorCode==1460?"Timeout":"Failed",r.ErrorCode,r.Error,interpreted.Text,r.Simulated?"SIMULATED":"Windows printer IOCTL; USB wire request unobserved",r.Simulated){ValidResponse=r.Success&&interpreted.Valid,Interpreted=r.Success&&interpreted.Valid});
+            session.RecordTransaction(new(transactionId,timestamp,device?.InstanceId??"Unavailable",command.Transport,device?.InterfacePath??"Unavailable","Driver-owned; EP0 unobserved",commandId,[],r.Response,null,watch.Elapsed.TotalMilliseconds,timeout.TotalMilliseconds,r.Success?(interpreted.Valid?"Success":"InvalidResponse"):r.ErrorCode==1460?"Timeout":"Failed",r.ErrorCode,r.Error,interpreted.Text,r.Simulated?"SIMULATED":"Windows printer IOCTL; USB wire request unobserved",r.Simulated){ApiIssued=r.ApiIssued,ValidResponse=r.Success&&interpreted.Valid,Interpreted=r.Success&&interpreted.Valid});
             return r;
         }
         catch (Exception e)
         {
-            session.RecordTransaction(new(transactionId,timestamp,device?.InstanceId??"Unavailable",command.Transport,device?.InterfacePath??"Unavailable","Driver-owned",commandId,[],[],null,watch.Elapsed.TotalMilliseconds,timeout.TotalMilliseconds,e is OperationCanceledException?"Cancelled":"Failed",null,e.Message,"No response","Host API invocation; no wire evidence",inner is MockTransport));
+            session.RecordTransaction(new(transactionId,timestamp,device?.InstanceId??"Unavailable",command.Transport,device?.InterfacePath??"Unavailable","Driver-owned",commandId,[],[],null,watch.Elapsed.TotalMilliseconds,timeout.TotalMilliseconds,e is OperationCanceledException?"Cancelled":"Failed",null,e.Message,"No response","Host API invocation; request issuance unknown, no wire evidence",inner is MockTransport){ApiIssued=false});
             session.Record(new(DateTimeOffset.UtcNow, command.Transport, "RX", commandId, "", "", 0, 0, false, null, e is OperationCanceledException ? "Cancelled" : e.Message, inner is MockTransport));
             throw;
         }

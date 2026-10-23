@@ -28,7 +28,7 @@ public sealed class MockTransport(MockScenario scenario) : IDeviceTransport
             var text = Encoding.ASCII.GetBytes("MFG:EPSON;MDL:PP-100;CMD:SIMULATED;" + (scenario == MockScenario.MissingSerial ? "" : "SN:DEMO-ONLY-0001;"));
             bytes = new byte[text.Length + 2]; bytes[0] = (byte)(bytes.Length >> 8); bytes[1] = (byte)bytes.Length; text.CopyTo(bytes, 2);
         }
-        return new(commandId, bytes, true, null, null, 1, true);
+        return new(commandId, bytes, true, null, null, 1, true){ApiIssued=false};
     }
     public ValueTask DisposeAsync() { Connected = false; return ValueTask.CompletedTask; }
 }

@@ -3,9 +3,10 @@ namespace DiscproducerDiagnostics.Core;
 
 public sealed record DiagnosticCommandDefinition(string Id, string Name, string Description, string Protocol,
     string RequiredTransport, string RequestFormat, string ExpectedResponse, string DocumentationReference,
-    string Requirements, bool Supported = true)
+    string Requirements, bool Supported = true, CommandSafety Safety = CommandSafety.DocumentedReadOnly)
 {
-    public bool IsReadOnly => true;
+    public bool IsReadOnly => Safety == CommandSafety.DocumentedReadOnly;
+    public string Availability => Supported ? "Available but untested on physical hardware" : "Unsupported by current implementation";
     public TimeSpan DefaultTimeout => TimeSpan.FromSeconds(10);
     public override string ToString() => Name;
 }
@@ -20,7 +21,13 @@ public static class DiagnosticCommands
         new DiagnosticCommandDefinition("spooler", "Windows printer queues and jobs", "Inspect Epson candidate queues and read-only job/driver information.", "Windows spooler", "Winspool", "EnumPrinters/GetPrinterDriver/EnumJobs/GetPrinterDataEx; no USB setup packet", "Queue, driver, jobs and association evidence", "https://learn.microsoft.com/en-us/windows/win32/printdocs/enumprinters", "Local spooler accessible"),
         new DiagnosticCommandDefinition("standard-status", "USB standard GET_STATUS — unsupported on current transport", "Standard GET_STATUS needs a separately supported control-transfer API. The hub descriptor API cannot issue it.", "USB standard", "No compatible transport implemented", "Not sent. No raw control-transfer access through Epson's printer handle.", "Unavailable", "https://www.usb.org/document-library/usb-20-specification", "Would require a documented compatible interface; no driver replacement", false)
     });
-    public static DiagnosticCommandDefinition Authorize(string id) => All.SingleOrDefault(c => c.Id == id) ?? throw new NotSupportedException("Command not in the read-only allowlist");
+    public static DiagnosticCommandDefinition Authorize(string id)
+    {
+        var c = All.SingleOrDefault(c => c.Id == id);
+        if (c == null || !c.Supported || c.Safety != CommandSafety.DocumentedReadOnly)
+            throw new NotSupportedException("Command is unsupported or not authorized as documented read-only");
+        return c;
+    }
 }
 public static class DescriptorRequests
 {
@@ -44,6 +51,10 @@ public record Transaction(Guid Id, DateTimeOffset TimestampUtc, string DeviceId,
     string Command, byte[] Request, byte[] Response, byte[]? SetupPacket, double DurationMs, double TimeoutMs,
     string Outcome, int? NativeError, string? Error, string Interpretation, string Provenance, bool Simulated = false)
 {
+    public DiagnosticError? Failure => Successful ? null : ErrorClassifier.Classify(
+        Outcome == "Cancelled" ? new OperationCanceledException(Error) : Outcome == "Timeout" ? new TimeoutException(Error) :
+        Outcome == "InvalidResponse" ? new FormatException(Error ?? "Malformed response") :
+        NativeError.HasValue ? new System.ComponentModel.Win32Exception(NativeError.Value, Error) : new IOException(Error ?? "Operation incomplete"),Command);
     public bool ApiIssued { get; init; } = true;
     public bool ValidResponse { get; init; }
     public bool Interpreted { get; init; }
@@ -73,7 +84,7 @@ public static class QueueCorrelation
     {
         var evidence = new List<string>();
         var matches = devices.Where(d => DeviceMatching.QueueMatches(d,p.Queue) || (ValidContainer(p.ContainerId) && string.Equals(d.Properties.GetValueOrDefault("ContainerId"),p.ContainerId,StringComparison.OrdinalIgnoreCase))).ToArray();
-        if (matches.Any(d => SamePhysical(d,selected))) evidence.Add("Exact spooler PnP instance ID matches selected device or its ancestry");
+        if (devices.Any(d => SamePhysical(d,selected) && DeviceMatching.QueueMatches(d,p.Queue))) evidence.Add("Exact spooler PnP instance ID matches selected device or its ancestry");
         string? container = selected.Properties.GetValueOrDefault("ContainerId");
         if (ValidContainer(container) && ValidContainer(p.ContainerId) && string.Equals(container,p.ContainerId,StringComparison.OrdinalIgnoreCase))
             evidence.Add("Exact non-empty PnP container ID match");

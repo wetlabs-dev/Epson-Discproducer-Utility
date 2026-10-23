@@ -17,7 +17,7 @@ public class ExplorationTests
     }
     [Theory][InlineData("soft-reset")][InlineData("vendor")][InlineData("eeprom")]
     public void ExplorerRejectsUnknownCommands(string id)=>Assert.Throws<NotSupportedException>(()=>DiagnosticCommands.Authorize(id));
-    [Fact] public void StandardStatusIsExplicitlyUnsupported()=>Assert.False(DiagnosticCommands.Authorize("standard-status").Supported);
+    [Fact] public void StandardStatusIsExplicitlyUnsupported()=>Assert.Throws<NotSupportedException>(()=>DiagnosticCommands.Authorize("standard-status"));
     [Fact] public void DecodesInterfacesAndEndpointFieldsWithoutAssumingAccess()
     {
         byte[] config=[9,2,25,0,1,1,0,0x80,50,9,4,2,1,1,7,1,2,0,7,5,0x82,2,0,2,8];

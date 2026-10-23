@@ -61,17 +61,19 @@ public sealed partial class MainViewModel : INotifyPropertyChanged, IDisposable
         CopyCommand = new ActionCommand(() => { try { if (SelectedLog != null) Clipboard.SetText(JsonSerializer.Serialize(SelectedLog, new JsonSerializerOptions { WriteIndented = true })); } catch (Exception e) { Notice = e.Message; } }, () => SelectedLog != null);
         ExportCommand = new ActionCommand(() => _ = Run(ExportBundle), () => !busy);
         InitializeExploration();
+        InitializeResearch();
     }
     private async Task Run(Func<CancellationToken,Task> action)
     {
+        if (busy) return;
         busy = true; ChangedState();
         using var cancellation = new CancellationTokenSource(); operation = cancellation;
         try { await action(cancellation.Token); }
-        catch (OperationCanceledException) { Notice = "Operation cancelled. Any displayed results are timestamped earlier observations."; session.Event("cancel", Notice, false); }
-        catch (Exception e) { Notice = e.Message; session.Event("failure", e.Message, false); }
+        catch (OperationCanceledException) { Step("Collection", "Cancelled", "Completed observations retained; export remains available."); Notice = "Operation cancelled. Any displayed results are timestamped earlier observations."; session.Event("cancel", Notice, false); }
+        catch (Exception e) { var error=ErrorClassifier.Classify(e); Notice = $"{error.Category}: {error.Detail} (native {error.NativeCode}; HRESULT {error.HResult}) — {error.Recovery}"; session.Event("failure", Notice, false); }
         finally { busy = false; operation = null; ChangedState(); }
     }
-    private void ChangedState() { OnChanged(nameof(CanConfigure)); OnChanged(nameof(CanSelect)); CommandManager.InvalidateRequerySuggested(); }
+    private void ChangedState() { OnChanged(nameof(CapabilityReport)); OnChanged(nameof(CanConfigure)); OnChanged(nameof(CanSelect)); CommandManager.InvalidateRequerySuggested(); }
     private async Task Scan(CancellationToken token)
     {
         Devices.Clear(); SelectedDevice = null; Statuses.Clear();
@@ -146,7 +148,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged, IDisposable
         if (!transport.Connected) { connected = false; Connection = "Device disconnected / unavailable"; return; }
         var status = await protocol.GetStatusAsync(token); Statuses.Add(status);
         connected = transport.Connected;
-        bool validIdentity = Facts.Any(f => f.Name == "Model" && f.Source.Contains("IEEE 1284") && f.Value != "Unavailable");
+        bool validIdentity = Facts.Any(f => f.Name == "Model" && f.Source.Contains("IEEE 1284") && f.Value != "Unavailable" && f.Availability == "Reported");
         bool validStatus = status.Availability != "Unavailable";
         Connection = d.Simulated ? "SIMULATED results • not hardware evidence" : !connected ? "Device disconnected / unavailable" : validIdentity || validStatus ? "Driver request/response succeeded • USB wire traffic/caching not independently verified" : "Interface opened • no valid identification/status response obtained";
         if (!validIdentity && !validStatus) Notice = "Queries failed or returned malformed data. Inspect the log for Windows error codes; retain Epson's driver.";

@@ -19,16 +19,21 @@ A read-only Windows 11 x64 WPF application targeting .NET 10. It discovers Epson
 **Without a printer:** enable Simulation mode, choose a scenario, Scan, then Connect. Disconnect before changing scenarios. Every mock device and response is marked simulated; PID `FFFF` and serial `DEMO-ONLY-0001` are invented test fixtures, never PP-100 identifiers.
 
 
-## Protocol investigation features (1.1)
+## Protocol investigation features (1.2.0)
 
 - **USB Interfaces**: expandable PnP/composite topology, driver service/INF/provider/version, container/location data, and actual device/configuration/string/interface/endpoint descriptors through the Windows hub API. Driver-key validation prevents querying an unrelated hub port. Access limitations remain explicit.
 - **Protocol Explorer**: allowlisted printer identity/status, hub descriptors, PnP and spooler inspection. Displays framing, source, requirements and interpreted outcomes. Standard GET_STATUS is explicitly unsupported on the current driver path; no arbitrary sender is exposed.
 - **Windows Printer**: queue/driver/port monitor, bidirectional configuration, pending jobs and evidence-based instance/container association with ambiguity reporting.
 - **Communication Log**: correlated host transactions, exact buffers, bounded offset/hex/ASCII view, filters, copy, binary and JSON save.
 - **USB Capture**: built-in offline USBPcap PCAPNG import, filters, URB correlation, setup/payload view and comparison to application transactions. No Wireshark dependency to import; no capture driver installation or packet replay.
-- **Diagnostic bundles**: schema 2 structured evidence and generated next steps, with three privacy modes. No claims that arbitrary binary data can be safely redacted.
+- **Diagnostic bundles**: schema 3 structured evidence and generated next steps, with three privacy modes. No claims that arbitrary binary data can be safely redacted.
 
-Start with the [first hardware test guide](docs/first-hardware-test.md), [capture guide](docs/usb-capture.md), [protocol reference](docs/protocol-explorer.md), and [export/privacy specification](docs/export-schema.md).
+- **Hardware Validation**: guided collection with separate discovery, association, handle, request and response milestones; categorized failures and recovery guidance.
+- **Research**: versioned sessions, manual annotations/associations, two-session comparison, per-byte payload differences and evidence hashes. Captures remain external files.
+- **Offline Evidence**: reopen schema 2/3 diagnostic ZIPs without hardware. Forensic identity, topology and transaction views are reconstructed separately from live state; all modes expose their retained documents.
+- **Reliability**: bounded worker progress preserves completed descriptor calls on timeout; native operations are serialized; PnP discovery is independent of spooler hangs. Redacted exports omit all job metadata.
+
+Start with the [hardware validation guide](docs/hardware-validation.md), [research sessions](docs/research-sessions.md), [capture correlation](docs/capture-correlation.md), [protocol research](docs/protocol-research.md), [fatal-error research targets](docs/fatal-error-research.md), [v1.2 audit](docs/v1.2-gap-analysis.md), [capture guide](docs/usb-capture.md), [protocol reference](docs/protocol-explorer.md), and [export/privacy specification](docs/export-schema.md).
 
 ## Build from source (developers only)
 

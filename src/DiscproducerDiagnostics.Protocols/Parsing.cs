@@ -15,6 +15,7 @@ public static class Ieee1284
         int declared = BinaryPrimitives.ReadUInt16BigEndian(bytes);
         if (declared < 2 || declared > bytes.Length) warnings.Add("Invalid or truncated length prefix; retained available bytes");
         int end = declared >= 2 && declared <= bytes.Length ? declared : bytes.Length;
+        if (bytes[2..end].ContainsAnyExceptInRange((byte)0, (byte)127)) warnings.Add("Non-ASCII identification bytes");
         string raw = Encoding.ASCII.GetString(bytes[2..end]).TrimEnd('\0');
         var fields = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
         foreach (var part in raw.Split(';', StringSplitOptions.RemoveEmptyEntries))
@@ -22,8 +23,10 @@ public static class Ieee1284
             int colon = part.IndexOf(':');
             if (colon <= 0) { warnings.Add("Malformed field"); continue; }
             string key = part[..colon].Trim(), value = part[(colon + 1)..].Trim();
+            if (key.Length == 0 || value.Length == 0) { warnings.Add("Empty field name or value"); continue; }
             if (!fields.TryAdd(key, value)) warnings.Add("Duplicate field: " + key);
         }
+        if (fields.Count == 0) warnings.Add("No identification fields");
         return new(fields, raw, warnings.ToArray());
     }
 }
@@ -68,7 +71,7 @@ public sealed class PrinterProtocol(IDeviceTransport transport, TimeSpan timeout
         var id = Ieee1284.Parse(response.Response);
         var result = new List<Fact>();
         foreach (var (name,value) in new[] { ("Manufacturer",id.Find("MFG","MANUFACTURER")),("Model",id.Find("MDL","MODEL")),("Serial number",id.Find("SN","SERN","SERIALNUMBER","SERIAL NUMBER")),("Command languages",id.Find("CMD","COMMAND SET")),("Description",id.Find("DES","DESCRIPTION")),("Class",id.Find("CLS","CLASS")) })
-            result.Add(new(name, value, source, value == "Unavailable" ? "Unavailable" : "Reported"));
+            result.Add(new(name, value, source, value == "Unavailable" ? "Unavailable" : id.Warnings.Length > 0 ? "Unverified malformed response" : "Reported"));
         result.Add(new("Identity parsing", id.Warnings.Length == 0 ? "Valid fields parsed" : string.Join("; ",id.Warnings), source));
         return result.ToArray();
     }
@@ -76,6 +79,6 @@ public sealed class PrinterProtocol(IDeviceTransport transport, TimeSpan timeout
     {
         var r = await transport.QueryAsync("port-status", timeout, token);
         string source = r.Simulated ? "SIMULATED USB printer class" : "USB printer class via Windows USB printer driver";
-        return new(source, DateTimeOffset.Now, Convert.ToHexString(r.Response), r.Success && r.Response.Length >= 4 ? StatusDecoder.Port(r.Response[0]) : "Unavailable", r.Success && r.Response.Length >= 4 ? "Driver-reported; may be cached" : "Unavailable", r.Error ?? (r.Response.Length < 4 ? "Missing DWORD status response" : null));
+        return new(source, DateTimeOffset.Now, Convert.ToHexString(r.Response), r.Success && r.Response.Length == 4 ? StatusDecoder.Port(r.Response[0]) : "Unavailable", r.Success && r.Response.Length == 4 ? "Driver-reported; may be cached" : "Unavailable", r.Error ?? (r.Response.Length != 4 ? "Expected exactly one DWORD status response" : null));
     }
 }

@@ -86,7 +86,8 @@ public static class NativeDiscovery
     private static string InstanceId(nint set, ref DevInfo info)
     {
         var text = new StringBuilder(1024);
-        return SetupDiGetDeviceInstanceIdW(set, ref info, text, text.Capacity, out _) ? text.ToString() : "Unavailable";
+        if (!SetupDiGetDeviceInstanceIdW(set, ref info, text, text.Capacity, out _)) throw new Win32Exception();
+        return text.ToString();
     }
     private static string Property(nint set, DevInfo info, uint property)
     {
@@ -117,7 +118,8 @@ public static class NativeDiscovery
             {
                 var info = new InterfaceInfo { Size = Marshal.SizeOf<InterfaceInfo>() };
                 if (!SetupDiEnumDeviceInterfaces(set, 0, ref guid, i, ref info)) { if (Marshal.GetLastWin32Error() != 259) throw new Win32Exception(); break; }
-                SetupDiGetDeviceInterfaceDetailW(set, ref info, 0, 0, out uint needed, 0);
+                bool sized=SetupDiGetDeviceInterfaceDetailW(set, ref info, 0, 0, out uint needed, 0);
+                if(!sized && Marshal.GetLastWin32Error()!=122)throw new Win32Exception();
                 if (needed < 8 || needed > 1048576) throw new InvalidOperationException("Invalid interface detail size");
                 nint detail = Marshal.AllocHGlobal((int)needed);
                 try

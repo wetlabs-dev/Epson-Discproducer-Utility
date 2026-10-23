@@ -10,10 +10,12 @@ internal static partial class PrinterQueues
     {
         EnumPrintersW(2, null, 2, 0, 0, out uint needed, out _);
         if (needed == 0) { if (Marshal.GetLastWin32Error() is not (0 or 122)) throw new Win32Exception(); return []; }
+        if (needed > 64*1024*1024) throw new Win32Exception(8,"Printer metadata exceeds limit");
         nint buffer = Marshal.AllocHGlobal(checked((int)needed));
         try
         {
             if (!EnumPrintersW(2, null, 2, buffer, needed, out _, out uint count)) throw new Win32Exception();
+            if (count > needed / Marshal.SizeOf<PrinterInfo>()) throw new Win32Exception(13,"Invalid printer array count");
             var result = new List<QueueStatus>();
             for (int i = 0; i < count; i++)
             {

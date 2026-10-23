@@ -10,7 +10,7 @@ namespace DiscproducerDiagnostics.Usb;
 [SupportedOSPlatform("windows")]
 internal static class HubDescriptorReader
 {
-    public static DescriptorReport Read(string instanceId)
+    public static DescriptorReport Read(string instanceId, Action<Transaction>? progress = null)
     {
         DiagnosticCommands.Authorize("descriptors");
         var blobs = new List<DescriptorBlob>(); var traces = new List<Transaction>(); var errors = new List<string>();
@@ -33,6 +33,7 @@ internal static class HubDescriptorReader
                 if(count<0||count>output.Length) { ok=false; code=13; count=0; }
                 byte[] result=ok?output[..count]:[];
                 traces.Add(new(Guid.NewGuid(),stamp,instanceId,"Windows USB hub DeviceIoControl",hub,setup==null?"Host metadata":"EP0 / device recipient",command,input,result,setup,sw.Elapsed.TotalMilliseconds,0,ok?"Success":"Failed",code,code.HasValue?new Win32Exception(code.Value).Message:null,"Host API reply; bus acknowledgement not observed",setup==null?"Windows hub metadata":"USB descriptor API; supplied setup, not captured wire bytes"));
+                progress?.Invoke(traces[^1]);
                 if(!ok) throw new Win32Exception(code??13);
                 return result;
             }

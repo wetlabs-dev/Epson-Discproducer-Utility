@@ -12,15 +12,16 @@ public record QueueStatus(string Name, string Port, string Driver, uint RawStatu
 public record Discovery(Device[] Devices, QueueStatus[] Queues, string[] Warnings);
 public record StatusResult(string Source, DateTimeOffset Timestamp, string Raw, string Interpretation,
     string Availability, string? Error = null);
-public record Exchange(string Command, byte[] Response, bool Success, int? ErrorCode, string? Error, double DurationMs, bool Simulated = false);
+public record Exchange(string Command, byte[] Response, bool Success, int? ErrorCode, string? Error, double DurationMs, bool Simulated = false) { public bool ApiIssued { get; init; } }
 public record LogEntry(DateTimeOffset Timestamp, string Transport, string Direction, string Command,
     string Hex, string Ascii, int Length, double DurationMs, bool Success, int? ErrorCode, string? Error, bool Simulated = false);
 public record WorkerRequest(string Operation, string? Path = null, string? Command = null);
-public record WorkerReply(Discovery? Discovery = null, Exchange? Exchange = null, string? Error = null, int? ErrorCode = null, DescriptorReport? Descriptors = null, PrinterDetail[]? Printers = null);
+public record WorkerReply(Discovery? Discovery = null, Exchange? Exchange = null, string? Error = null, int? ErrorCode = null, DescriptorReport? Descriptors = null, PrinterDetail[]? Printers = null, Transaction? Progress = null, DiagnosticError? Failure = null);
 public sealed record CommandDefinition(string Id, string Description, uint Ioctl, int OutputLength, string ResponseFormat, string Source)
 {
     public string Transport => "Windows usbprint.sys DeviceIoControl";
-    public bool ReadOnly => true;
+    public CommandSafety Safety => CommandSafety.DocumentedReadOnly;
+    public bool ReadOnly => Safety == CommandSafety.DocumentedReadOnly;
     public TimeSpan DefaultTimeout => TimeSpan.FromSeconds(5);
 }
 public static class CommandRegistry
@@ -30,7 +31,7 @@ public static class CommandRegistry
         ["ieee1284"] = new("ieee1284", "Read IEEE 1284 identity", 0x220034, 4094, "Two-byte length prefix + IEEE 1284 fields", "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usbprint/ni-usbprint-ioctl_usbprint_get_1284_id"),
         ["port-status"] = new("port-status", "Read printer class status", 0x220030, 4, "DWORD; low byte has USB printer class status bits", "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usbprint/ni-usbprint-ioctl_usbprint_get_lpt_status")
     };
-    public static CommandDefinition Authorize(string id) => Commands.TryGetValue(id, out var c) ? c : throw new NotSupportedException("Unknown command rejected by the read-only registry.");
+    public static CommandDefinition Authorize(string id) { DiagnosticCommands.Authorize(id); return Commands.TryGetValue(id, out var c) ? c : throw new NotSupportedException("Unknown native command rejected by the read-only registry."); }
 }
 public interface IDeviceTransport : IAsyncDisposable
 {

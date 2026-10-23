@@ -14,7 +14,7 @@ public static class Program
             using var input = new StreamReader(Console.OpenStandardInput());
             using var output = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
             WorkerReply reply;
-            try { reply = NativeWorker.Execute(JsonSerializer.Deserialize<WorkerRequest>(input.ReadLine() ?? "") ?? throw new InvalidDataException("Missing request")); }
+            try { reply = NativeWorker.Execute(JsonSerializer.Deserialize<WorkerRequest>(input.ReadLine() ?? "") ?? throw new InvalidDataException("Missing request"), t => output.WriteLine(JsonSerializer.Serialize(new WorkerReply(Progress: t)))); }
             catch (Exception e) { reply = new(Error: e.Message); }
             output.WriteLine(JsonSerializer.Serialize(reply));
             return;
