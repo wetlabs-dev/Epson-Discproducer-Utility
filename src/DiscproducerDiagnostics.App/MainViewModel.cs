@@ -62,6 +62,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged, IDisposable
         ExportCommand = new ActionCommand(() => _ = Run(ExportBundle), () => !busy);
         InitializeExploration();
         InitializeResearch();
+        InitializeToolkit();
     }
     private async Task Run(Func<CancellationToken,Task> action)
     {

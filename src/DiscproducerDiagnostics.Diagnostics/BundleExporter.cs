@@ -12,7 +12,7 @@ public record BundleSnapshot(Device? Device, Fact[] Facts,StatusResult[] Statuse
 }
 public static class BundleExporter
 {
-    public const string Version="1.2.0";
+    public const string Version="1.3.0";
     public static void Export(string file,BundleSnapshot data,ExportMode mode,bool forensicConfirmed)
     {
         if(mode==ExportMode.FullForensic&&!forensicConfirmed)throw new InvalidOperationException("Full forensic export requires explicit confirmation");

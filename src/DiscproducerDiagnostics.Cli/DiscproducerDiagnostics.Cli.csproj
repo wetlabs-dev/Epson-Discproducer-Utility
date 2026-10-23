@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>Exe</OutputType><AssemblyName>discdiag-cli</AssemblyName></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../DiscproducerDiagnostics.Diagnostics/DiscproducerDiagnostics.Diagnostics.csproj"/></ItemGroup>
+</Project>

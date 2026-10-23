@@ -72,8 +72,9 @@ public static class ResearchSessionStore
     }
     public static ResearchSession Load(string path)
     {
+        EvidenceFiles.RequireLocal(path);
         if(new FileInfo(path).Length>MaxSessionBytes)throw new InvalidDataException("Session exceeds 4 MiB limit");
-        var session=JsonSerializer.Deserialize<ResearchSession>(File.ReadAllBytes(path),Options)??throw new InvalidDataException("Empty session");Validate(session);return session;
+        var session=JsonSerializer.Deserialize<ResearchSession>(EvidenceFiles.ReadBounded(path,MaxSessionBytes),Options)??throw new InvalidDataException("Empty session");Validate(session);return session;
     }
     private static void Validate(ResearchSession s)
     {
@@ -90,7 +91,7 @@ public static class ResearchSessionStore
         string path=ResolveCapture(sessionPath,reference);var info=new FileInfo(path);
         if(!info.Exists)throw new FileNotFoundException("External capture missing. Re-import the original capture; the session remains readable.",path);
         if(info.Length!=reference.Size||info.Length>UsbCaptureImporter.MaxFileSize)throw new InvalidDataException("Capture size differs from saved evidence");
-        byte[] bytes=File.ReadAllBytes(path);
+        byte[] bytes=EvidenceFiles.ReadBounded(path,UsbCaptureImporter.MaxFileSize);
         if(!Convert.ToHexString(SHA256.HashData(bytes)).Equals(reference.Sha256,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Capture SHA-256 mismatch; comparison blocked");
         return UsbCaptureImporter.Parse(bytes,path,token);
     }

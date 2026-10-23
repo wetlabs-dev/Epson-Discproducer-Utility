@@ -21,7 +21,7 @@ internal static class UiSmokeTest
         {
             try
             {
-                var model=(MainViewModel)window.DataContext;await model.VerifySimulatedUiAsync();
+                var model=(MainViewModel)window.DataContext;await model.VerifySimulatedUiAsync();await model.VerifyToolkitUiAsync();
                 if(window.Content is Grid grid)
                 {
                     var tabs=grid.Children.OfType<TabControl>().Single();

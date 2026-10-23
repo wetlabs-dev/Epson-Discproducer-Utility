@@ -77,7 +77,7 @@ public sealed record ResearchSession
     public int SchemaVersion { get; init; } = 1;
     public Guid SessionId { get; init; } = Guid.NewGuid();
     public DateTimeOffset CreatedUtc { get; init; } = DateTimeOffset.UtcNow;
-    public string ApplicationVersion { get; init; } = "1.2.0";
+    public string ApplicationVersion { get; init; } = "1.3.0";
     public string Name { get; init; } = "Research session";
     public string Model { get; init; } = "Unverified";
     public string Firmware { get; init; } = "Unavailable / unverified";

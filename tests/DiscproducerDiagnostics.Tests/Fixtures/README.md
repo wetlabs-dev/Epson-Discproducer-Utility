@@ -13,3 +13,12 @@ tshark -r usb_u3v_sample.pcapng -T fields -e frame.number -e frame.time_epoch -e
 ```
 
 Tests compare packet count, timestamps, bus/address, endpoint, transfer type and stages against this saved output. They also verify known setup bytes and legacy-stage reconstruction. This does not establish coverage of every USBPcap version or transfer type.
+
+## Additional v1.3 independent fixture
+
+`usb-hid.pcapng` is copied unchanged from Wireshark's test source tree, distributed under its GPL-2.0-or-later project license (`WIRESHARK-COPYING.txt` accompanies this test data):
+https://github.com/wireshark/wireshark/blob/master/test/captures/usb-hid.pcapng
+SHA-256: `893f285dce30121687f164c57572dc873595a7bc289dde3596b7bb0ec160bc34`.
+The source file itself is included, without modification, in this test-only directory. It is not included in the application package.
+
+TShark 4.2.6 generated `usb-hid.tshark.tsv` with the same field command above, omitting the empty final control-stage column. This independent fixture contains Linux USB encapsulation (link type 220), not USBPcap. The importer must explicitly report it unsupported and preserve the source file. It must never reinterpret that header as USBPcap. The existing camera fixture supplies positive USBPcap dissection comparisons. No new physical PP-100 captures or modern USBPcap hardware coverage are claimed.

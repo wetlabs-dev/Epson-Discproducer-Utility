@@ -76,7 +76,7 @@ public record CapturePacket(int Number, int Section, uint CaptureInterface, Date
     public string EndpointText => $"0x{Endpoint:X2}";
     public string StatusText => $"0x{Status:X8}";
 }
-public record CaptureReport(string FileName, string Sha256, long FileSize, CapturePacket[] Packets, string[] Warnings, bool Complete);
+public record CaptureReport(string FileName, string Sha256, long FileSize, CapturePacket[] Packets, string[] Warnings, bool Complete) { public string ParserVersion { get; init; } = "Unspecified (legacy evidence)"; }
 public record CaptureEnvironment(string Name, string Status, string? Path, string? Version);
 public static class QueueCorrelation
 {

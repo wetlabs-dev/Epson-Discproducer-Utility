@@ -6,6 +6,7 @@ namespace DiscproducerDiagnostics.Diagnostics;
 // PCAPNG container fields follow section byte order. USBPcap pseudoheaders are always little-endian.
 public static class UsbCaptureImporter
 {
+    public const string ParserVersion="usbpcap-1.3.0";
     public const int MaxFileSize=128*1024*1024, MaxPackets=100000;
     private record CaptureInterface(ushort LinkType,double SecondsPerUnit,long OffsetSeconds);
     public static CaptureReport Parse(byte[] file,string name,CancellationToken token=default)
@@ -73,7 +74,7 @@ public static class UsbCaptureImporter
         if(section<0)Warn("No valid PCAPNG section");
         Correlate(packets,warnings);
         complete &= !packets.Any(p=>p.Correlation is "Request without completion" or "Completion without request" or "Ambiguous repeated URB ID" or "Intermediate without request" or "Unmatched");
-        return new(Path.GetFileName(name),Convert.ToHexString(SHA256.HashData(file)),file.Length,packets.ToArray(),warnings.ToArray(),complete);
+        return new(Path.GetFileName(name),Convert.ToHexString(SHA256.HashData(file)),file.Length,packets.ToArray(),warnings.ToArray(),complete){ParserVersion=ParserVersion};
     }
     private static CapturePacket DecodePacket(ReadOnlySpan<byte> data,int number,int section,uint iface,DateTimeOffset? time,int original)
     {

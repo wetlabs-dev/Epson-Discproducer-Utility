@@ -22,6 +22,9 @@ jobs:
       - name: WPF launch smoke test
         shell: pwsh
         run: ./scripts/smoke-test.ps1
+      - name: Offline CLI integration smoke test
+        shell: pwsh
+        run: ./scripts/cli-smoke-test.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: DiscproducerDiagnostics-win-x64

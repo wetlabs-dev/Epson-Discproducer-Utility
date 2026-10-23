@@ -19,7 +19,7 @@ A read-only Windows 11 x64 WPF application targeting .NET 10. It discovers Epson
 **Without a printer:** enable Simulation mode, choose a scenario, Scan, then Connect. Disconnect before changing scenarios. Every mock device and response is marked simulated; PID `FFFF` and serial `DEMO-ONLY-0001` are invented test fixtures, never PP-100 identifiers.
 
 
-## Protocol investigation features (1.2.0)
+## Protocol investigation features (1.3.0)
 
 - **USB Interfaces**: expandable PnP/composite topology, driver service/INF/provider/version, container/location data, and actual device/configuration/string/interface/endpoint descriptors through the Windows hub API. Driver-key validation prevents querying an unrelated hub port. Access limitations remain explicit.
 - **Protocol Explorer**: allowlisted printer identity/status, hub descriptors, PnP and spooler inspection. Displays framing, source, requirements and interpreted outcomes. Standard GET_STATUS is explicitly unsupported on the current driver path; no arbitrary sender is exposed.
@@ -34,6 +34,12 @@ A read-only Windows 11 x64 WPF application targeting .NET 10. It discovers Epson
 - **Reliability**: bounded worker progress preserves completed descriptor calls on timeout; native operations are serialized; PnP discovery is independent of spooler hangs. Redacted exports omit all job metadata.
 
 Start with the [hardware validation guide](docs/hardware-validation.md), [research sessions](docs/research-sessions.md), [capture correlation](docs/capture-correlation.md), [protocol research](docs/protocol-research.md), [fatal-error research targets](docs/fatal-error-research.md), [v1.2 audit](docs/v1.2-gap-analysis.md), [capture guide](docs/usb-capture.md), [protocol reference](docs/protocol-explorer.md), and [export/privacy specification](docs/export-schema.md).
+
+## Offline evidence toolkit (1.3.0)
+
+The Windows package now includes `discdiag-cli.exe` alongside the GUI. Use `discdiag-cli inspect bundle.zip --json`, `discdiag-cli analyze capture.pcapng --json`, or `discdiag-cli report bundle.zip --output report.html` without connecting hardware. The CLI has no USB transport dependency.
+
+The **Evidence Toolkit** tab provides passive fingerprints, multi-session comparison, highlighted byte differences, entropy/variation profiles, a filterable timeline, persistent findings, a documented PP-100 reference subset and offline HTML reports. [CLI commands, exit codes, privacy and analysis limits](docs/evidence-toolkit.md) · [Release notes](docs/release-notes-1.3.0.md).
 
 ## Build from source (developers only)
 
