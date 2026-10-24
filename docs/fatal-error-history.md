@@ -13,3 +13,5 @@ Before adding history retrieval, obtain:
 If proprietary documentation is unavailable, a separately authorized passive traffic study of an official read-history action could establish request/reply candidates. Every command still needs individual safety review; passive capture alone does not prove a replay is harmless. No capture is performed by this utility.
 
 The existing transport/protocol separation, command registry, raw-response logs and mock fixtures provide the integration points once that evidence exists. Any future state-changing maintenance feature would require a different explicit authorization/safety design and is outside version 1.
+
+Offline research now traces the original-model library dependencies and identifies missing configuration. See [PP-100 dependency trace and implementation specification](research/pp100-eeprom-dependency-trace.md). It does not enable or authorize hardware queries.
