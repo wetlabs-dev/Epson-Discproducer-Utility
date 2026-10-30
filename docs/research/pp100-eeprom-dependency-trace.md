@@ -57,6 +57,8 @@ This explains selection of Ctl versus Prod reply routines. It does **not** justi
 
 No complete certification of ECBTEG worker-thread behavior, recovery branches, awake/sleep semantics or cleanup effects is claimed. The smallest future implementation should reproduce only independently verified necessary session operations, not embed the entire legacy control stack.
 
+Follow-up evidence: [cap2 power-on analysis](cap2-analysis.md) observes the exact 27-byte entry sequence at frame 6760, followed by a successful completion and a reply. This resolves its absence from the earlier capture, but does not establish EEPROM parameters, a history-read exchange, or the safety of all legacy connection paths.
+
 ## Printer read path and response handling
 
 The traced call chain is:
