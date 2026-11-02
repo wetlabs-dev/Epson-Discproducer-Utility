@@ -34,6 +34,18 @@ Raw logs contain job names and identifiers and are intentionally excluded from t
 
 ## Outcome and next steps
 
+### Further static trace: software fatal code is not EEPROM history
+
+A subsequent focused pass resolved the indirect call previously described only as a callback. In the base CPublisherCtrl vtable at RVA 0x955F8, slot 0x60 points to AnalyzeResultCode at RVA 0x4E850. The observed ASB flag's rising edge supplies argument 0x1A and zero as the second argument. AnalyzeResultCode calls vtable slot 0x70, which resolves to SetFatalErrorCode at RVA 0x596A0.
+
+For input 0x1A, the switch tables at 0x59748/0x59738 select 0x596F9, storing that input in object field 0x108. This is software state derived from the status indication; it is not a byte retrieved from an EEPROM address. The names of these methods must not be mistaken for evidence of a service-history read.
+
+GetFatalCode at RVA 0x57320 allocates a four-byte result and returns object field 0x108 on its ordinary branch; another branch substitutes 0x1B. Inspection through the function return at 0x573C4 shows no device-history retrieval in this accessor. Calling it would expose application state, not recover the missing detailed history.
+
+The Monitor resources contain separate generic internal-printer-error text entries (STR-70b and STR-73b). However, its message-selection enum is a separate layer: numeric 0x1A in the Monitor's switch does not directly select those entries. The complete mapping from this publisher result to the displayed message has not been verified. Do not equate numbers across these layers or label 0x1A as a PP-100 service-manual fault.
+
+This eliminates another tempting but unsupported shortcut. The installed stack can report a software fatal code without possessing the detailed EEPROM history. Further examination could clarify presentation semantics, but this trace offers no new component-level diagnosis or safe history-read command.
+
 The requested installed-library comparison is complete at the level supported by this evidence. It establishes repeatability and maps the captured change into the installed software's internal flag/callback path. It does not establish a failed component or resolve the missing printer EEPROM profile and history exchange.
 
 No further ordinary startup capture, software reinstall, driver replacement or firmware update is indicated by these findings. Keep the original captures and copied logs intact.
