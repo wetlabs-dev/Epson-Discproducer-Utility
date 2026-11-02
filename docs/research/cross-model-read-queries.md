@@ -51,3 +51,7 @@ Incorrect protocol framing, channel selection or initialization can nevertheless
 Next implementation work should stay offline: test a fixed serializer/parser against captured or documented exchanges, with no public arbitrary-byte sender. Before enabling transmission, obtain an original PP-100 parameter profile and an independently verified exchange (a legitimate existing capture can suffice). Restrict the eventual reader to identified firmware/model, one verified transport, a small allowlist of history addresses, bounded timeouts, strict response validation, and explicit failures. Exclude key guessing, address sweeps, resets, print jobs, status-configuration changes and fallback probing. Preserve the Epson driver. Report raw values separately from tentative error meanings.
 
 The immediate usable read-only route remains the existing identification/port-status queries and passive decoding of Epson's status traffic. These confirm the generic error but have not identified the failing component. Repeating them is not a substitute for resolving the history profile.
+
+## Follow-up: a model-specific candidate was found
+
+A subsequent upstream-database search found original PP-100 parameters `0A 5E` and two-byte addressing. This supersedes the lack of a sourced parameter candidate above, while hardware verification remains outstanding. See [provenance, byte order, database omission explanation and limitations](pp100-read-parameter-candidate.md).
