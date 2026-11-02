@@ -4,6 +4,18 @@ $cli = Join-Path $PWD 'artifacts/win-x64/discdiag-cli.exe'
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString())
 New-Item -ItemType Directory $work | Out-Null
 try {
+  & $cli history --json | Out-File (Join-Path $work 'history.json')
+  if ($LASTEXITCODE -ne 5) { throw 'History readiness must remain unverified' }
+  $history = Get-Content (Join-Path $work 'history.json') -Raw | ConvertFrom-Json
+  if ($history.LiveReadEnabled -ne $false -or $history.Gaps.Count -ne 4) { throw 'Unsafe history readiness' }
+  $historyInput = Join-Path $work 'history-input.json'
+  @{ SchemaVersion=1; Model='PP-100'; Firmware='WLP00105'; SourceSha256=('A' * 64); Exchanges=@(
+    @{ Id='synthetic'; RequestHex='7C7C0700123441BEA03C00'; ResponseHex='404244432050530D0A45453A3030334330313B0C' }
+  ) } | ConvertTo-Json -Depth 4 | Set-Content $historyInput -Encoding utf8NoBOM
+  & $cli history $historyInput --json | Out-File (Join-Path $work 'history-result.json')
+  if ($LASTEXITCODE -ne 5) { throw 'History evidence must remain unverified' }
+  $result = Get-Content (Join-Path $work 'history-result.json') -Raw | ConvertFrom-Json
+  if ($result.Candidates[0].Value -ne '0x01' -or $result.Readiness.LiveReadEnabled -ne $false) { throw 'Wrong candidate history result' }
   & $cli errors 0x01 --json | Out-File (Join-Path $work 'codes.json')
   if ($LASTEXITCODE -ne 0) { throw 'CLI code reference failed' }
   $codes = Get-Content (Join-Path $work 'codes.json') -Raw | ConvertFrom-Json

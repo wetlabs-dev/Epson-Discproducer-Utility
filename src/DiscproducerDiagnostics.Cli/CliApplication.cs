@@ -3,7 +3,7 @@ using DiscproducerDiagnostics.Diagnostics;
 namespace DiscproducerDiagnostics.Cli;
 public static class CliApplication
 {
-    public const string Usage="discdiag-cli inspect|validate <bundle.zip> [--json]\ndiscdiag-cli analyze <capture.pcapng> [--json]\ndiscdiag-cli compare <baseline> <error-session> [more sessions, max 8] [--json]\ndiscdiag-cli report <bundle.zip> --output report.html [--json]\ndiscdiag-cli errors [hex-code or text] [--json]";
+    public const string Usage="discdiag-cli inspect|validate <bundle.zip> [--json]\ndiscdiag-cli analyze <capture.pcapng> [--json]\ndiscdiag-cli compare <baseline> <error-session> [more sessions, max 8] [--json]\ndiscdiag-cli report <bundle.zip> --output report.html [--json]\ndiscdiag-cli errors [hex-code or text] [--json]\ndiscdiag-cli history [history-evidence.json] [--json] (offline; exit 5: unverified)";
     public static int Run(string[] args,TextWriter output,TextWriter error,CancellationToken token=default)
     {
         bool json=args.Contains("--json",StringComparer.Ordinal);var positional=args.Where(a=>a!="--json").ToArray();
@@ -13,7 +13,12 @@ public static class CliApplication
             token.ThrowIfCancellationRequested();
             if(positional.Length==0||positional[0] is "--help" or "help"){output.WriteLine(Usage);return positional.Length==0?2:0;}
             string command=positional[0];object result;int exit=0;
-            if(command=="errors"&&positional.Length<=2)result=Pp100ErrorReference.Search(positional.ElementAtOrDefault(1)??"");
+            if(command=="history"&&positional.Length<=2)
+            {
+                result=positional.Length==1?HistoryReader.Readiness:HistoryReader.Read(positional[1],token);
+                exit=5; // Incomplete/unverified evidence; never claims a verified live history read.
+            }
+            else if(command=="errors"&&positional.Length<=2)result=Pp100ErrorReference.Search(positional.ElementAtOrDefault(1)??"");
             else if(command is "inspect" or "validate" && positional.Length==2)
             {
                 var bundle=BundleReader.Open(positional[1],strict:command=="validate");result=new{SchemaVersion=1,Mode=bundle.Mode,Validation="Accepted; hashes checked where supplied, not authenticated authorship",bundle.Warnings,Documents=command=="inspect"?bundle.Documents:null};

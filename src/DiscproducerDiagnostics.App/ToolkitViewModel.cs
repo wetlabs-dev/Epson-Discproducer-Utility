@@ -69,6 +69,8 @@ public sealed partial class MainViewModel
     public ICommand ExportFindingsCommand {get;private set;}=null!;
     public ICommand SearchErrorsCommand {get;private set;}=null!;
     public ICommand GenerateHtmlCommand {get;private set;}=null!;
+    public ICommand HistoryReadinessCommand {get;private set;}=null!;
+    public ICommand ReadHistoryEvidenceCommand {get;private set;}=null!;
     private void ShowToolkit(object result)
     {
         toolkitJson=JsonSerializer.Serialize(result,EvidenceFiles.Json);ToolkitResult=toolkitJson.Length<=131072?toolkitJson:toolkitJson[..131072]+"\nPreview truncated; export analysis JSON for all bounded results.";
@@ -105,9 +107,17 @@ public sealed partial class MainViewModel
         SearchErrorsCommand=new ActionCommand(()=>{ErrorReferences.Clear();foreach(var e in Pp100ErrorReference.Search(ErrorSearch))ErrorReferences.Add(e);SelectedErrorReference=ErrorReferences.FirstOrDefault();},()=>!busy);
         foreach(var e in Pp100ErrorReference.All)ErrorReferences.Add(e);
         GenerateHtmlCommand=new ActionCommand(GenerateHtml,()=>!busy);
+        HistoryReadinessCommand=new ActionCommand(()=>ShowToolkit(HistoryReader.Readiness),()=>!busy);
+        ReadHistoryEvidenceCommand=new ActionCommand(()=>{
+            var picker=new OpenFileDialog{Filter="History exchange evidence|*.json"};if(picker.ShowDialog()!=true)return;
+            _=Run(async token=>ShowToolkit(await Task.Run(()=>HistoryReader.Read(picker.FileName,token),token)));
+        },()=>!busy);
     }
     internal async Task VerifyToolkitUiAsync()
     {
+        HistoryReadinessCommand.Execute(null);
+        if(!ToolkitResult.Contains("Blocked:")||HistoryReader.Readiness.LiveReadEnabled)
+            throw new InvalidOperationException("History readiness UI must stay blocked");
         var time=DateTimeOffset.Parse("2026-01-01T00:00:00Z",CultureInfo.InvariantCulture);
         var packet=new CapturePacket(1,0,0,time,1,2,0x81,"IN","Bulk",1,0,false,null,[],[0xAA,1],2,null);
         captureReport=new("SIMULATED",new string('A',64),0,[packet,packet with{Number=2,TimestampUtc=time.AddSeconds(1),Payload=[0xAA,2]}],[],true);
