@@ -69,6 +69,7 @@ public sealed partial class MainViewModel
     public ICommand ExportFindingsCommand {get;private set;}=null!;
     public ICommand SearchErrorsCommand {get;private set;}=null!;
     public ICommand GenerateHtmlCommand {get;private set;}=null!;
+    public ICommand ProbeTransportOwnershipCommand {get;private set;}=null!;
     public ICommand HistoryReadinessCommand {get;private set;}=null!;
     public ICommand ReadHistoryEvidenceCommand {get;private set;}=null!;
     private void ShowToolkit(object result)
@@ -107,6 +108,10 @@ public sealed partial class MainViewModel
         SearchErrorsCommand=new ActionCommand(()=>{ErrorReferences.Clear();foreach(var e in Pp100ErrorReference.Search(ErrorSearch))ErrorReferences.Add(e);SelectedErrorReference=ErrorReferences.FirstOrDefault();},()=>!busy);
         foreach(var e in Pp100ErrorReference.All)ErrorReferences.Add(e);
         GenerateHtmlCommand=new ActionCommand(GenerateHtml,()=>!busy);
+        ProbeTransportOwnershipCommand=new ActionCommand(()=>_=Run(async token=>{
+            var reply=await RecordedWorker(new("transport-ownership",SelectedDevice!.InterfacePath),token);
+            ShowToolkit(reply.TransportOwnership!);
+        }),()=>!busy&&!Simulation&&SelectedDevice?.InterfacePath!=null&&SelectedDevice.Vid=="04B8"&&SelectedDevice.Pid=="0007");
         HistoryReadinessCommand=new ActionCommand(()=>ShowToolkit(HistoryReader.Readiness),()=>!busy);
         ReadHistoryEvidenceCommand=new ActionCommand(()=>{
             var picker=new OpenFileDialog{Filter="History exchange evidence|*.json"};if(picker.ShowDialog()!=true)return;
@@ -115,6 +120,8 @@ public sealed partial class MainViewModel
     }
     internal async Task VerifyToolkitUiAsync()
     {
+        if(Simulation && ProbeTransportOwnershipCommand.CanExecute(null))
+            throw new InvalidOperationException("Ownership probe must be disabled in simulation");
         HistoryReadinessCommand.Execute(null);
         if(!ToolkitResult.Contains("Blocked:")||HistoryReader.Readiness.LiveReadEnabled)
             throw new InvalidOperationException("History readiness UI must stay blocked");

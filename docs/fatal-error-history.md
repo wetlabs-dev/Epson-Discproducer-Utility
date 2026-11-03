@@ -52,3 +52,5 @@ Only candidate addresses `003C`, `0109`, `0119`, `0129`, `0139`, and `00F8` are 
 The existing cap1/cap2 investigations have not established such a history exchange, so those captures cannot currently supply this input. The next prerequisite is a legitimate original PP-100 parameter profile plus an independently verified history-read exchange—not another ordinary status capture. See [cross-model findings](research/cross-model-read-queries.md).
 
 Research update: a public original-model profile now supplies candidate read bytes **`0A 5E`** and two-byte addressing. These remain unverified on WLP00105; live transmission is still disabled. See [the sourced candidate and remaining validation](research/pp100-read-parameter-candidate.md). No additional ordinary status capture is needed to establish this candidate.
+
+Transport implementation update: the [driver-preserving foundation and Windows exclusive-access probe](driver-preserving-transport.md) are available. The D4 engine is tested with simulated streams and remains outside the live worker allowlist. Probe success is not proof of clean firmware session ownership.

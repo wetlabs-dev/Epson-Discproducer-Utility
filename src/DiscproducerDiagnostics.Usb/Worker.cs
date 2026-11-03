@@ -19,6 +19,13 @@ public static class NativeWorker
             if (request.Operation == "scan") return new(Discovery: NativeDiscovery.Scan(false));
             if (request.Operation == "descriptors") return new(Descriptors: HubDescriptorReader.Read(request.Path ?? "", progress));
             if (request.Operation == "printers") { DiagnosticCommands.Authorize("spooler"); return new(Printers: PrinterQueues.Inspect()); }
+            if (request.Operation == "transport-ownership")
+            {
+                var exclusive = UsbPrintStream.OpenExclusive(request.Path ?? "");
+                try { return new(TransportOwnership: [new("Exclusive interface access", "Acquired; no payload sent", "Windows CreateFile with zero sharing", "Driver-reported; not proof of a clean D4 session"),
+                    new("Live D4 transmission", "Disabled", "Application allowlist", "Session ownership and cleanup require physical validation")]); }
+                finally { exclusive.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+            }
             if (request.Operation is not ("probe" or "query")) throw new NotSupportedException("Unknown worker operation");
             // Re-enumerate to prevent stale paths or arbitrary CreateFile targets from being used.
             var device = NativeDiscovery.Scan(includeQueues: false).Devices.FirstOrDefault(d => d.InterfacePath != null && d.InterfacePath.Equals(request.Path, StringComparison.OrdinalIgnoreCase));

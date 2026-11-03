@@ -102,6 +102,7 @@ public static class WorkerAuthorization
         switch(request.Operation)
         {
             case "query": CommandRegistry.Authorize(request.Command ?? ""); break;
+            case "transport-ownership":
             case "probe": break; // Path is revalidated by the native boundary before CreateFile.
             case "scan": DiagnosticCommands.Authorize("pnp"); break;
             case "descriptors": DiagnosticCommands.Authorize("descriptors"); break;
