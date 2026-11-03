@@ -9,6 +9,8 @@ public class D4TransportTests
     {
         public List<string> Writes {get;}=[];
         public bool Disposed;
+        public bool Candidate;
+        public string CandidateBody = "404244432050530D0A45453A3030334330313B0C";
         public bool Split, Early, Hang, RejectClose, Zero, Malformed, WrongSocket, WrongRevision, Oversized, NoEnd, NoCommandCredit;
         private readonly Queue<byte[]> reads=[];
         public ValueTask WriteAsync(ReadOnlyMemory<byte> bytes,CancellationToken token)
@@ -21,6 +23,7 @@ public class D4TransportTests
                 "0000001101000102020200020000000000"=>"00000010010081000202004001000000",
                 "0000000D01000402020080FFFF"=>Zero?"0000000C0100840002020000":"0000000C0100840002020001",
                 "0202000B00017374010001"=>"",
+                "0202001100017C7C07000A5E41BEA03C00" when Candidate=>"",
                 "0000000B01000302020001"=>"0000000A010083000202",
                 "0000000A010002020200"=>RejectClose?"0000000A010082010202":"0000000A010082000202",
                 _=>throw new InvalidOperationException("Unexpected outgoing bytes: "+hex)
@@ -32,6 +35,7 @@ public class D4TransportTests
             if(hex=="0000000B01000302020001" && !Hang)
             {
                 string data=WrongSocket?"030300080001AABB":"020200080001AABB";
+                if(Candidate)data="0202"+((CandidateBody.Length/2)+6).ToString("X4")+"0001"+CandidateBody;
                 if(NoEnd)data="020200080000AABB";
                 reply=Early?data+reply:reply+data;
             }
@@ -127,6 +131,61 @@ public class D4TransportTests
         Assert.Throws<NotSupportedException>(()=>WorkerAuthorization.Authorize(new("d4-status-qualification",Command:"history")));
         Assert.Throws<NotSupportedException>(()=>WorkerAuthorization.Authorize(new("d4-status-qualification",Command:"7C7C")));
         Assert.Throws<NotSupportedException>(()=>WorkerAuthorization.Authorize(new("query",Command:"d4-status-qualification")));
+    }
+
+    [Theory][InlineData(false,false)][InlineData(true,true)]
+    public async Task CandidateUsesOnlyOneFixedRead(bool split,bool early)
+    {
+        var stream=new Script{Candidate=true,Split=split,Early=early};
+        var result=await new D4Session(stream).ReadCandidateAsync(TimeSpan.FromSeconds(2),default);
+        Assert.True(result.Complete,result.Error);Assert.StartsWith("Close acknowledged",result.Cleanup);
+        Assert.Equal("0202001100017C7C07000A5E41BEA03C00",Assert.Single(stream.Writes,x=>x.StartsWith("0202")));
+        Assert.Equal("0x01",DiscproducerDiagnostics.Protocols.EepromCandidate.Interpret(result).Value);
+        Assert.True(stream.Disposed);
+    }
+    [Theory][InlineData("404244432050530D0A45453A3030334430313B0C")][InlineData("7C7C3A34313A4E413B")][InlineData("40424443205354320D0A")]
+    public async Task CandidateRejectsWrongAddressRejectionAndStatusWithoutRetry(string body)
+    {
+        var stream=new Script{Candidate=true,CandidateBody=body};
+        var transport=await new D4Session(stream).ReadCandidateAsync(TimeSpan.FromSeconds(1),default);
+        var result=DiscproducerDiagnostics.Protocols.EepromCandidate.Interpret(transport);
+        Assert.Null(result.Value);Assert.NotNull(result.ValidationError);Assert.NotEmpty(result.Transport.Response);
+        Assert.StartsWith("Close acknowledged",transport.Cleanup);Assert.Single(stream.Writes,x=>x.StartsWith("0202"));
+    }
+    [Fact] public async Task CandidateZeroCreditSendsNoRead()
+    {
+        var stream=new Script{Candidate=true,Zero=true};
+        var result=await new D4Session(stream).ReadCandidateAsync(TimeSpan.FromSeconds(1),default);
+        Assert.False(result.Complete);Assert.DoesNotContain(stream.Writes,x=>x.StartsWith("0202"));
+    }
+    [Fact] public async Task CandidateTimeoutRetainsTraceAndDoesNotRetry()
+    {
+        var stream=new Script{Candidate=true,Hang=true};
+        var result=await new D4Session(stream).ReadCandidateAsync(TimeSpan.FromMilliseconds(100),default);
+        Assert.False(result.Complete);Assert.Null(DiscproducerDiagnostics.Protocols.EepromCandidate.Interpret(result).Value);
+        Assert.Single(stream.Writes,x=>x.StartsWith("0202"));Assert.NotEmpty(result.Trace);Assert.True(stream.Disposed);
+        Assert.DoesNotContain("0000000A010002020200",stream.Writes);
+    }
+    [Fact] public async Task CandidateCancellationBeforeStartSendsNothing()
+    {
+        var stream=new Script{Candidate=true};
+        var result=await new D4Session(stream).ReadCandidateAsync(TimeSpan.FromSeconds(1),new CancellationToken(true));
+        Assert.False(result.Complete);Assert.Empty(stream.Writes);Assert.True(stream.Disposed);
+    }
+    [Theory][InlineData(1)][InlineData(6)]
+    public async Task ServiceGuardFailurePreventsNextWrite(int failAt)
+    {
+        var stream=new Script{Candidate=true};int checks=0;
+        var guarded=new EepromGuard(stream,()=>{if(++checks>=failAt)throw new IOException("Service no longer stopped");});
+        var result=await new D4Session(guarded).ReadCandidateAsync(TimeSpan.FromSeconds(1),default);
+        Assert.False(result.Complete);Assert.Equal(failAt-1,stream.Writes.Count);
+        Assert.DoesNotContain(stream.Writes,x=>x.StartsWith("0202"));Assert.True(stream.Disposed);
+    }
+    [Fact] public void CandidateWorkerRejectsOverrides()
+    {
+        WorkerAuthorization.Authorize(new("eeprom-candidate-003c"));
+        foreach(var command in new[]{"003D","0A5E","","reset"})
+            Assert.Throws<NotSupportedException>(()=>WorkerAuthorization.Authorize(new("eeprom-candidate-003c",Command:command)));
     }
     [Fact] public void WorkerOnlyAllowsPayloadFreeOwnershipProbe()
     {

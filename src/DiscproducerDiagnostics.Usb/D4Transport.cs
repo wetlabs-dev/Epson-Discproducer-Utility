@@ -43,8 +43,7 @@ internal sealed class UsbPrintStream : ID4Stream
 }
 
 
-// Fixed status exchange from cap2, for transport qualification. Not an EEPROM reader.
-// Invoked only by the fixed status-qualification worker operation.
+// Two fixed operations only; no caller-supplied command, key or address.
 internal sealed class D4Session(ID4Stream stream, Action<D4Trace>? progress = null)
 {
     private readonly List<D4Trace> trace = [];
@@ -56,8 +55,13 @@ internal sealed class D4Session(ID4Stream stream, Action<D4Trace>? progress = nu
     private string stage = "Start";
     private static byte[] Hex(string value) => Convert.FromHexString(value);
 
-    internal async Task<D4SessionResult> QualifyAsync(TimeSpan timeout, CancellationToken token)
+    internal Task<D4SessionResult> QualifyAsync(TimeSpan timeout, CancellationToken token) => ExchangeAsync(false, timeout, token);
+    internal Task<D4SessionResult> ReadCandidateAsync(TimeSpan timeout, CancellationToken token) => ExchangeAsync(true, timeout, token);
+
+    private async Task<D4SessionResult> ExchangeAsync(bool candidate, TimeSpan timeout, CancellationToken token)
     {
+        string request = candidate ? "0202001100017C7C07000A5E41BEA03C00" : "0202000B00017374010001";
+        string operation = candidate ? "Candidate EEPROM" : "Status";
         if (used) throw new InvalidOperationException("A D4 session cannot be reused.");
         used = true;
         byte[] response = []; string? error = null; string cleanup = "No channel opened"; bool complete = false;
@@ -81,7 +85,7 @@ internal sealed class D4Session(ID4Stream stream, Action<D4Trace>? progress = nu
             if (open.Length != 16 || !open.AsSpan(6,4).SequenceEqual(Hex("81000202"))) throw new IOException("Invalid channel-open reply");
             int maxSend = BinaryPrimitives.ReadUInt16BigEndian(open.AsSpan(10));
             maxReceive = BinaryPrimitives.ReadUInt16BigEndian(open.AsSpan(12));
-            if (maxSend < 11 || maxSend > 512 || maxReceive < 7 || maxReceive > 512) throw new IOException("Unsupported negotiated packet size");
+            if (maxSend < request.Length / 2 || maxSend > 512 || maxReceive < 7 || maxReceive > 512) throw new IOException("Unsupported negotiated packet size");
             sendCredit = BinaryPrimitives.ReadUInt16BigEndian(open.AsSpan(14)); opened = true; trusted = true;
             for (int attempt=0; sendCredit==0 && attempt<3; attempt++)
             {
@@ -91,16 +95,16 @@ internal sealed class D4Session(ID4Stream stream, Action<D4Trace>? progress = nu
                 sendCredit = BinaryPrimitives.ReadUInt16BigEndian(grant.AsSpan(10)); trusted = true;
                 if(sendCredit==0 && attempt<2) await Task.Delay(100,ct);
             }
-            if(sendCredit==0) throw new IOException("No send credit; status request not sent");
-            stage="Status request"; sendCredit--;
-            await Write("0202000B00017374010001",ct);
+            if(sendCredit==0) throw new IOException("No send credit; request not sent");
+            stage=operation+" request"; sendCredit--;
+            await Write(request,ct);
             // One receive packet is authorized at a time; do not resend the query.
             var body = new List<byte>();
             for(int fragment=0;fragment<8;fragment++)
             {
                 receiveCredit++;
                 await Command("Reply credit", "0000000B01000302020001", "83000202",ct,allowEarlyData:true);
-                stage="Status reply";trusted=false;
+                stage=operation+" reply";trusted=false;
                 var data=earlyData;earlyData=null;
                 if(data==null) { data=await Packet(ct);AcceptData(data); }
                 body.AddRange(data[6..]);

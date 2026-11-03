@@ -1,6 +1,6 @@
 # Driver-preserving transport foundation
 
-Implemented 2026-11-03. Physical PP-100 validation remains outstanding. Version 1.3.2 enables one fixed, experimental D4 status qualification. EEPROM requests remain disabled.
+Implemented 2026-11-03. Physical PP-100 validation remains outstanding. Version 1.3.2 enables one fixed, experimental D4 status qualification. Version 1.3.3 adds a separate experimental single-byte candidate read; see [procedure and limitations](release-notes-1.3.3.md).
 
 ## What can be tested on Windows 11
 
@@ -17,7 +17,7 @@ An acquired handle establishes Windows share-mode exclusion during that handle's
 
 `UsbPrintStream` uses the installed printer interface with `FILE_FLAG_OVERLAPPED`; async I/O accepts cancellation tokens. Exclusive opening fails closed. It provides no public arbitrary-byte API. The fixed live qualification operation retains the same exclusive handle throughout setup, request, response and cleanup; a separate probe is not authorization to send.
 
-`D4Session` is a single-use, fixed **status-only** qualification exchange based on cap2. It performs packet entry, revision-10 Init, EPSON-CTRL lookup, channel open, bounded credit requests, one captured status request, receive-credit grants and channel close. No EEPROM payload, caller-selected command, key, address, reset, D4 Exit, fallback revision or replay is supported. It is now reachable through the fixed `d4-status-qualification` worker operation and its GUI button. Imported evidence cannot invoke it.
+`D4Session` is a single-use engine with fixed status qualification and a separate fixed candidate EEPROM operation. Status setup is based on cap2. It performs packet entry, revision-10 Init, EPSON-CTRL lookup, channel open, bounded credit requests, one captured status request, receive-credit grants and channel close. The candidate operation substitutes only the fixed `0x003C` read. No caller-selected command, key, address, reset, D4 Exit, fallback revision or replay is supported. It is now reachable through the fixed `d4-status-qualification` worker operation and its GUI button. Imported evidence cannot invoke it.
 
 The engine distinguishes command/send/receive credits, waits for nonzero send credit, and handles an authorized data packet preceding the receive-credit acknowledgement. It reassembles split packets and retains coalesced packets. Packet sizes, bytes, fragments, credit polling and overall duration are bounded. A complete reply requires the message-end flag; timeout is not a substitute. Raw incoming chunks and attempted/completed outgoing writes are retained in its result.
 
@@ -32,7 +32,7 @@ Windows cancellation is cooperative: [Microsoft documents that drivers may not h
 - Run the fixed status-only qualification once; compare its transcript and cleanup against cap2 and Epson software behavior.
 - Only then consider the sourced candidate EEPROM read. The history address map and first real EEPROM response remain unverified.
 
-Automated tests use simulated byte streams, not printer hardware. They check split/coalesced/early replies, zero credits, deadlines, cancellation, malformed lengths, wrong sockets, cleanup failure and rejection of EEPROM and arbitrary-command authorization. No hardware compatibility claim follows from those tests.
+Automated tests use simulated byte streams, not printer hardware. They check split/coalesced/early replies, zero credits, deadlines, cancellation, malformed lengths, wrong sockets, cleanup failure and rejection of arbitrary-command authorization. No hardware compatibility claim follows from those tests.
 
 ## Run one status-only qualification (v1.3.2)
 

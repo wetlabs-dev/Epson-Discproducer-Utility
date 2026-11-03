@@ -5,6 +5,7 @@ using System.Runtime.Versioning;
 using System.Text.Json;
 using Microsoft.Win32.SafeHandles;
 using DiscproducerDiagnostics.Core;
+using DiscproducerDiagnostics.Protocols;
 namespace DiscproducerDiagnostics.Usb;
 
 // Native calls run in a disposable child process. A wedged driver/spooler cannot block the UI.
@@ -19,6 +20,18 @@ public static class NativeWorker
             if (request.Operation == "scan") return new(Discovery: NativeDiscovery.Scan(false));
             if (request.Operation == "descriptors") return new(Descriptors: HubDescriptorReader.Read(request.Path ?? "", progress));
             if (request.Operation == "printers") { DiagnosticCommands.Authorize("spooler"); return new(Printers: PrinterQueues.Inspect()); }
+            if (request.Operation == "eeprom-candidate-003c")
+            {
+                EepromGuard.RequireStoppedServices();
+                var identity = Execute(new("query", request.Path, "ieee1284"));
+                if (identity.Exchange is not { Success: true, Simulated: false } exchange)
+                    throw new IOException("Cannot establish driver-reported identity; no EEPROM request sent");
+                EepromCandidate.ValidateIdentity(exchange.Response);
+                var exclusive = UsbPrintStream.OpenExclusive(request.Path ?? "");
+                var result = new D4Session(new EepromGuard(exclusive, EepromGuard.RequireStoppedServices), item => progress?.Invoke(QualificationTrace(request.Path!, item, "eeprom-candidate-003c")))
+                    .ReadCandidateAsync(TimeSpan.FromSeconds(8), CancellationToken.None).GetAwaiter().GetResult();
+                return new(EepromCandidate: EepromCandidate.Interpret(result));
+            }
             if (request.Operation == "d4-status-qualification")
             {
                 var exclusive = UsbPrintStream.OpenExclusive(request.Path ?? "");
@@ -30,7 +43,7 @@ public static class NativeWorker
             {
                 var exclusive = UsbPrintStream.OpenExclusive(request.Path ?? "");
                 try { return new(TransportOwnership: [new("Exclusive interface access", "Acquired; no payload sent", "Windows CreateFile with zero sharing", "Driver-reported; not proof of a clean D4 session"),
-                    new("Live D4 transmission", "Status-only qualification available separately", "Application allowlist", "EEPROM remains disabled; this probe releases its handle")]); }
+                    new("Live D4 transmission", "Status-only qualification available separately", "Application allowlist", "Candidate EEPROM read requires separate guarded action; this probe releases its handle")]); }
                 finally { exclusive.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
             }
             if (request.Operation is not ("probe" or "query")) throw new NotSupportedException("Unknown worker operation");
@@ -53,14 +66,14 @@ public static class NativeWorker
         }
         catch (Exception ex) { return new(Error: ex.Message, ErrorCode: ex is Win32Exception w ? w.NativeErrorCode : null, Failure: ErrorClassifier.Classify(ex,request.Operation)); }
     }
-    internal static Transaction QualificationTrace(string path, D4Trace item)
+    internal static Transaction QualificationTrace(string path, D4Trace item, string operation = "d4-status-qualification")
     {
         bool incoming=item.Direction=="IN", attempted=item.Direction=="OUT attempted";
         byte[] bytes=Convert.FromHexString(item.Hex);
         return new(Guid.NewGuid(),item.TimestampUtc,"Selected PP-100 printer interface","Windows usbprint.sys byte stream",path,
-            incoming?"Bulk IN (driver-owned)":"Bulk OUT (driver-owned)","d4-status-qualification: "+item.Stage,
+            incoming?"Bulk IN (driver-owned)":"Bulk OUT (driver-owned)",operation+": "+item.Stage,
             incoming?[]:bytes,incoming?bytes:[],null,0,8000,attempted?"Attempted":"Success",null,null,
-            item.Direction+"; host I/O evidence, no bus acknowledgement inferred","Live qualification; raw host stream; status-only")
+            item.Direction+"; host I/O evidence, no bus acknowledgement inferred",operation+"; raw host stream; hardware semantics unverified")
             {ApiIssued=true,ValidResponse=false,Interpreted=false};
     }
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)] private static extern SafeFileHandle CreateFileW(string name, uint access, uint share, nint security, uint creation, uint flags, nint template);

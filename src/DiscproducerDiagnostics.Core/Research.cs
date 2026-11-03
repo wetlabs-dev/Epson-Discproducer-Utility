@@ -102,6 +102,7 @@ public static class WorkerAuthorization
         switch(request.Operation)
         {
             case "query": CommandRegistry.Authorize(request.Command ?? ""); break;
+            case "eeprom-candidate-003c":
             case "d4-status-qualification":
                 if (request.Command != null) throw new NotSupportedException("Qualification does not accept command bytes or overrides");
                 break;

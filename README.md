@@ -78,3 +78,7 @@ The MIT-licensed Serilog and xUnit dependencies are restored from NuGet with the
 ### v1.3.2: one-shot D4 status qualification
 
 For the original PP-100 printer interface, **Evidence Toolkit → Analysis → Run one D4 status qualification** enables the fixed, experimental status exchange observed in cap2. It uses the installed driver and exclusive access, streams raw evidence, and reports cleanup separately. EEPROM reads remain disabled. See [Windows instructions and limits](docs/driver-preserving-transport.md#run-one-status-only-qualification-v132) and [release notes](docs/release-notes-1.3.2.md).
+
+### v1.3.3: experimental fixed EEPROM candidate read
+
+A separate GUI action can attempt one byte at candidate address `0x003C`, using the sourced original-model profile and existing driver. It requires stopped Epson Control/Copy services and a matching driver-reported identity. EEPROM compatibility and error meanings remain unverified. Follow the [Windows procedure and recovery instructions](docs/release-notes-1.3.3.md); the CLI and history importer remain offline.

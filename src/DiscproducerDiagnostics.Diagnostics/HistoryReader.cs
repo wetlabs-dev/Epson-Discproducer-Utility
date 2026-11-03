@@ -18,8 +18,8 @@ public static class HistoryReader
 {
     public const int MaxFileBytes = 65536;
     public static HistoryReadiness Readiness => new(false, "Blocked: no verified original PP-100 live-read profile", [
-        "Missing PP-100 pnRNumber read parameters; other-model keys and default zeros are not verified.",
-        "Missing verified address-width selection and minimal driver-preserving session sequence.",
+        "Sourced candidate 0A5E / two-byte addressing exists; EEPROM hardware compatibility is unverified.",
+        "Status-only D4 sequence succeeded in physical capture; full history retrieval stays blocked. GUI offers a separate experimental single-byte candidate read.",
         "Missing PP-100 addressed EEPROM reply fixture; current parser grammar is a cross-model hypothesis.",
         "Candidate history addresses are not reconciled with the service manual or validated for WLP00105."
     ]);

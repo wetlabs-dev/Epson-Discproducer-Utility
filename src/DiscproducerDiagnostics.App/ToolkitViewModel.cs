@@ -69,6 +69,7 @@ public sealed partial class MainViewModel
     public ICommand ExportFindingsCommand {get;private set;}=null!;
     public ICommand SearchErrorsCommand {get;private set;}=null!;
     public ICommand GenerateHtmlCommand {get;private set;}=null!;
+    public ICommand ReadEepromCandidateCommand {get;private set;}=null!;
     public ICommand QualifyD4StatusCommand {get;private set;}=null!;
     public ICommand ProbeTransportOwnershipCommand {get;private set;}=null!;
     public ICommand HistoryReadinessCommand {get;private set;}=null!;
@@ -137,6 +138,21 @@ public sealed partial class MainViewModel
                 throw;
             }
         }),()=>!busy&&!Simulation&&SelectedDevice?.InterfacePath!=null&&SelectedDevice.Vid=="04B8"&&SelectedDevice.Pid=="0007");
+        ReadEepromCandidateCommand=new ActionCommand(()=>{
+            if(System.Windows.MessageBox.Show("Experimental single-byte read at 0x003C. PP-100 EEPROM compatibility and the byte's meaning are unverified. Close Epson applications, stop Control and Copy services, and start USBPcap first. No jobs may be active. The app will not stop or restart services. Run once and restore services afterward?", "Candidate EEPROM read", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning, System.Windows.MessageBoxResult.No)!=System.Windows.MessageBoxResult.Yes)return;
+            _=Run(async token=>{
+                ShowToolkit(new {State="Candidate read running",Cleanup="Pending"});
+                try {
+                    var reply=await worker.RunAsync(new("eeprom-candidate-003c",SelectedDevice!.InterfacePath),TimeSpan.FromSeconds(15),token,
+                        new Progress<Transaction>(t=>session.RecordTransaction(t)));
+                    if(reply.Error!=null)throw new IOException(reply.Error);
+                    ShowToolkit(reply.EepromCandidate??throw new IOException("Missing candidate result"));
+                } catch(Exception e) {
+                    ShowToolkit(new {State="Candidate read did not finish",Error=e.Message,Cleanup="Not confirmed; retain Communication Log and USBPcap; restore services manually"});
+                    throw;
+                }
+            });
+        },()=>!busy&&!Simulation&&SelectedDevice?.InterfacePath!=null&&SelectedDevice.Vid=="04B8"&&SelectedDevice.Pid=="0007");
         HistoryReadinessCommand=new ActionCommand(()=>ShowToolkit(HistoryReader.Readiness),()=>!busy);
         ReadHistoryEvidenceCommand=new ActionCommand(()=>{
             var picker=new OpenFileDialog{Filter="History exchange evidence|*.json"};if(picker.ShowDialog()!=true)return;
@@ -145,7 +161,7 @@ public sealed partial class MainViewModel
     }
     internal async Task VerifyToolkitUiAsync()
     {
-        if(Simulation && (ProbeTransportOwnershipCommand.CanExecute(null)||QualifyD4StatusCommand.CanExecute(null)))
+        if(Simulation && (ProbeTransportOwnershipCommand.CanExecute(null)||QualifyD4StatusCommand.CanExecute(null)||ReadEepromCandidateCommand.CanExecute(null)))
             throw new InvalidOperationException("Ownership probe must be disabled in simulation");
         HistoryReadinessCommand.Execute(null);
         if(!ToolkitResult.Contains("Blocked:")||HistoryReader.Readiness.LiveReadEnabled)
