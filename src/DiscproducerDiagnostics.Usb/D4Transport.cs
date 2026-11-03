@@ -42,16 +42,14 @@ internal sealed class UsbPrintStream : ID4Stream
     private static extern SafeFileHandle CreateFileW(string path, uint access, uint share, nint security, uint creation, uint flags, nint template);
 }
 
-internal record D4Trace(string Stage, string Direction, string Hex, DateTimeOffset TimestampUtc);
-internal record D4SessionResult(byte[] Response, bool Complete, string? Error, string Cleanup, D4Trace[] Trace);
 
 // Fixed status exchange from cap2, for transport qualification. Not an EEPROM reader.
-// There is deliberately no worker operation that invokes this engine yet.
-internal sealed class D4Session(ID4Stream stream)
+// Invoked only by the fixed status-qualification worker operation.
+internal sealed class D4Session(ID4Stream stream, Action<D4Trace>? progress = null)
 {
     private readonly List<D4Trace> trace = [];
     private readonly List<byte> pending = [];
-    private int packets, receivedBytes, sendCredit, receiveCredit, commandCredit = 1;
+    private int packets, receivedBytes, sendCredit, receiveCredit, commandCredit = 0;
     private bool opened, trusted = true, used;
     private byte[]? earlyData;
     private int maxReceive = 256;
@@ -132,16 +130,22 @@ internal sealed class D4Session(ID4Stream stream)
         return new(response,complete,error,cleanup,trace.ToArray());
     }
 
+    private void Record(D4Trace item)
+    {
+        trace.Add(item);
+        progress?.Invoke(item); // streamed to parent before the next native I/O
+    }
     private async Task Write(string hex,CancellationToken token)
     {
         token.ThrowIfCancellationRequested();trusted=false;
-        var bytes=Hex(hex);trace.Add(new(stage,"OUT attempted",hex,DateTimeOffset.UtcNow));
+        var bytes=Hex(hex);Record(new(stage,"OUT attempted",hex,DateTimeOffset.UtcNow));
         await stream.WriteAsync(bytes,token);
-        trace.Add(new(stage,"OUT completed",hex,DateTimeOffset.UtcNow));
+        Record(new(stage,"OUT completed",hex,DateTimeOffset.UtcNow));
     }
     private async Task<byte[]> Command(string name,string request,string? expected,CancellationToken token,bool init=false,bool allowEarlyData=false)
     {
         stage=name;
+        if(pending.Count!=0 || earlyData!=null) { trusted=false;throw new IOException("Unexpected buffered data before command; no further request sent"); }
         if(!init && commandCredit<=0)throw new IOException("No command-channel credit");
         if(!init)commandCredit--;
         await Write(request,token);
@@ -182,7 +186,7 @@ internal sealed class D4Session(ID4Stream stream)
             }
             byte[] bytes=new byte[512];int read=await stream.ReadAsync(bytes,token);
             if(read<=0 || read>bytes.Length)throw new IOException("Disconnected or invalid read count");
-            trace.Add(new(stage,"IN",Convert.ToHexString(bytes.AsSpan(0,read)),DateTimeOffset.UtcNow));
+            Record(new(stage,"IN",Convert.ToHexString(bytes.AsSpan(0,read)),DateTimeOffset.UtcNow));
             receivedBytes+=read;if(receivedBytes>8192)throw new IOException("Receive budget exceeded");
             pending.AddRange(bytes.AsSpan(0,read).ToArray());
         }

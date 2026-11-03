@@ -9,7 +9,7 @@ public class D4TransportTests
     {
         public List<string> Writes {get;}=[];
         public bool Disposed;
-        public bool Split, Early, Hang, RejectClose, Zero, Malformed, WrongSocket, WrongRevision, Oversized, NoEnd;
+        public bool Split, Early, Hang, RejectClose, Zero, Malformed, WrongSocket, WrongRevision, Oversized, NoEnd, NoCommandCredit;
         private readonly Queue<byte[]> reads=[];
         public ValueTask WriteAsync(ReadOnlyMemory<byte> bytes,CancellationToken token)
         {
@@ -25,6 +25,7 @@ public class D4TransportTests
                 "0000000A010002020200"=>RejectClose?"0000000A010082010202":"0000000A010082000202",
                 _=>throw new InvalidOperationException("Unexpected outgoing bytes: "+hex)
             };
+            if(NoCommandCredit && hex=="0000000801000010")reply="000000090000800010";
             if(WrongRevision && hex=="0000000801000010")reply="000000090100800020";
             if(Oversized && Writes.Count==1)reply="000002010100";
             if(Malformed && Writes.Count==1)reply="000000050100";
@@ -104,6 +105,28 @@ public class D4TransportTests
     {
         var stream=new Script{Oversized=true};var result=await new D4Session(stream).QualifyAsync(TimeSpan.FromSeconds(1),default);
         Assert.False(result.Complete);Assert.Single(stream.Writes);Assert.True(stream.Disposed);
+    }
+    [Fact] public async Task InitWithoutGrantedCommandCreditCannotResolveSocket()
+    {
+        var stream=new Script{NoCommandCredit=true};var result=await new D4Session(stream).QualifyAsync(TimeSpan.FromSeconds(1),default);
+        Assert.False(result.Complete);Assert.Equal(2,stream.Writes.Count);Assert.Contains("command-channel credit",result.Error!);
+    }
+    [Fact] public async Task ProgressSurvivesIncompleteExchangeAndDtoRoundTrips()
+    {
+        var events=new List<D4Trace>();var stream=new Script{Hang=true};
+        var result=await new D4Session(stream,events.Add).QualifyAsync(TimeSpan.FromMilliseconds(100),default);
+        Assert.False(result.Complete);Assert.NotEmpty(events);Assert.Equal(events.Count,result.Trace.Length);
+        Assert.Contains(events,e=>e.Direction=="OUT attempted");Assert.Contains(events,e=>e.Direction=="IN");
+        var reply=new WorkerReply(D4Qualification:result);
+        var decoded=System.Text.Json.JsonSerializer.Deserialize<WorkerReply>(System.Text.Json.JsonSerializer.Serialize(reply));
+        Assert.Equal(result.Trace.Length,decoded!.D4Qualification!.Trace.Length);
+    }
+    [Fact] public void OnlyFixedQualificationOperationIsAuthorized()
+    {
+        WorkerAuthorization.Authorize(new("d4-status-qualification"));
+        Assert.Throws<NotSupportedException>(()=>WorkerAuthorization.Authorize(new("d4-status-qualification",Command:"history")));
+        Assert.Throws<NotSupportedException>(()=>WorkerAuthorization.Authorize(new("d4-status-qualification",Command:"7C7C")));
+        Assert.Throws<NotSupportedException>(()=>WorkerAuthorization.Authorize(new("query",Command:"d4-status-qualification")));
     }
     [Fact] public void WorkerOnlyAllowsPayloadFreeOwnershipProbe()
     {

@@ -16,7 +16,7 @@ public record Exchange(string Command, byte[] Response, bool Success, int? Error
 public record LogEntry(DateTimeOffset Timestamp, string Transport, string Direction, string Command,
     string Hex, string Ascii, int Length, double DurationMs, bool Success, int? ErrorCode, string? Error, bool Simulated = false);
 public record WorkerRequest(string Operation, string? Path = null, string? Command = null);
-public record WorkerReply(Discovery? Discovery = null, Exchange? Exchange = null, string? Error = null, int? ErrorCode = null, DescriptorReport? Descriptors = null, PrinterDetail[]? Printers = null, Transaction? Progress = null, DiagnosticError? Failure = null, Fact[]? TransportOwnership = null);
+public record WorkerReply(Discovery? Discovery = null, Exchange? Exchange = null, string? Error = null, int? ErrorCode = null, DescriptorReport? Descriptors = null, PrinterDetail[]? Printers = null, Transaction? Progress = null, DiagnosticError? Failure = null, Fact[]? TransportOwnership = null, D4SessionResult? D4Qualification = null);
 public sealed record CommandDefinition(string Id, string Description, uint Ioctl, int OutputLength, string ResponseFormat, string Source)
 {
     public string Transport => "Windows usbprint.sys DeviceIoControl";
@@ -51,3 +51,6 @@ public static class DeviceMatching
     public static bool QueueMatches(Device device, QueueStatus queue) => queue.InstanceId is { Length: > 0 } id &&
         (string.Equals(device.InstanceId, id, StringComparison.OrdinalIgnoreCase) || device.Ancestors.Contains(id, StringComparer.OrdinalIgnoreCase));
 }
+
+public record D4Trace(string Stage, string Direction, string Hex, DateTimeOffset TimestampUtc);
+public record D4SessionResult(byte[] Response, bool Complete, string? Error, string Cleanup, D4Trace[] Trace);

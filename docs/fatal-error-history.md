@@ -53,4 +53,4 @@ The existing cap1/cap2 investigations have not established such a history exchan
 
 Research update: a public original-model profile now supplies candidate read bytes **`0A 5E`** and two-byte addressing. These remain unverified on WLP00105; live transmission is still disabled. See [the sourced candidate and remaining validation](research/pp100-read-parameter-candidate.md). No additional ordinary status capture is needed to establish this candidate.
 
-Transport implementation update: the [driver-preserving foundation and Windows exclusive-access probe](driver-preserving-transport.md) are available. The D4 engine is tested with simulated streams and remains outside the live worker allowlist. Probe success is not proof of clean firmware session ownership.
+Transport implementation update: the [driver-preserving foundation and Windows exclusive-access probe](driver-preserving-transport.md) are available. The fixed status-only D4 qualification is enabled in v1.3.2; EEPROM operations remain outside the live worker allowlist. Probe success is not proof of clean firmware session ownership.

@@ -19,11 +19,18 @@ public static class NativeWorker
             if (request.Operation == "scan") return new(Discovery: NativeDiscovery.Scan(false));
             if (request.Operation == "descriptors") return new(Descriptors: HubDescriptorReader.Read(request.Path ?? "", progress));
             if (request.Operation == "printers") { DiagnosticCommands.Authorize("spooler"); return new(Printers: PrinterQueues.Inspect()); }
+            if (request.Operation == "d4-status-qualification")
+            {
+                var exclusive = UsbPrintStream.OpenExclusive(request.Path ?? "");
+                var result = new D4Session(exclusive, item => progress?.Invoke(QualificationTrace(request.Path!, item)))
+                    .QualifyAsync(TimeSpan.FromSeconds(8), CancellationToken.None).GetAwaiter().GetResult();
+                return new(D4Qualification: result);
+            }
             if (request.Operation == "transport-ownership")
             {
                 var exclusive = UsbPrintStream.OpenExclusive(request.Path ?? "");
                 try { return new(TransportOwnership: [new("Exclusive interface access", "Acquired; no payload sent", "Windows CreateFile with zero sharing", "Driver-reported; not proof of a clean D4 session"),
-                    new("Live D4 transmission", "Disabled", "Application allowlist", "Session ownership and cleanup require physical validation")]); }
+                    new("Live D4 transmission", "Status-only qualification available separately", "Application allowlist", "EEPROM remains disabled; this probe releases its handle")]); }
                 finally { exclusive.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
             }
             if (request.Operation is not ("probe" or "query")) throw new NotSupportedException("Unknown worker operation");
@@ -45,6 +52,16 @@ public static class NativeWorker
             return new(Exchange: new(command.Id, output[..read], true, null, null, watch.Elapsed.TotalMilliseconds){ApiIssued=true});
         }
         catch (Exception ex) { return new(Error: ex.Message, ErrorCode: ex is Win32Exception w ? w.NativeErrorCode : null, Failure: ErrorClassifier.Classify(ex,request.Operation)); }
+    }
+    internal static Transaction QualificationTrace(string path, D4Trace item)
+    {
+        bool incoming=item.Direction=="IN", attempted=item.Direction=="OUT attempted";
+        byte[] bytes=Convert.FromHexString(item.Hex);
+        return new(Guid.NewGuid(),item.TimestampUtc,"Selected PP-100 printer interface","Windows usbprint.sys byte stream",path,
+            incoming?"Bulk IN (driver-owned)":"Bulk OUT (driver-owned)","d4-status-qualification: "+item.Stage,
+            incoming?[]:bytes,incoming?bytes:[],null,0,8000,attempted?"Attempted":"Success",null,null,
+            item.Direction+"; host I/O evidence, no bus acknowledgement inferred","Live qualification; raw host stream; status-only")
+            {ApiIssued=true,ValidResponse=false,Interpreted=false};
     }
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)] private static extern SafeFileHandle CreateFileW(string name, uint access, uint share, nint security, uint creation, uint flags, nint template);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool DeviceIoControl(SafeFileHandle file, uint ioctl, nint input, int inputLength, byte[] output, int outputLength, out int returned, nint overlapped);

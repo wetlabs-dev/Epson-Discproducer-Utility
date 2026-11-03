@@ -74,3 +74,7 @@ The MIT-licensed Serilog and xUnit dependencies are restored from NuGet with the
 
 
 [v1.3.1 response compatibility update](docs/release-notes-1.3.1.md) accepts observed one-byte driver status replies and preserves identity framing warnings. [First PP-100 error-session analysis](docs/research/cap1-analysis.md).
+
+### v1.3.2: one-shot D4 status qualification
+
+For the original PP-100 printer interface, **Evidence Toolkit → Analysis → Run one D4 status qualification** enables the fixed, experimental status exchange observed in cap2. It uses the installed driver and exclusive access, streams raw evidence, and reports cleanup separately. EEPROM reads remain disabled. See [Windows instructions and limits](docs/driver-preserving-transport.md#run-one-status-only-qualification-v132) and [release notes](docs/release-notes-1.3.2.md).

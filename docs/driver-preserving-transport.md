@@ -1,6 +1,6 @@
 # Driver-preserving transport foundation
 
-Implemented 2026-11-03. Physical PP-100 validation remains outstanding. This release does not enable live D4 status or EEPROM requests.
+Implemented 2026-11-03. Physical PP-100 validation remains outstanding. Version 1.3.2 enables one fixed, experimental D4 status qualification. EEPROM requests remain disabled.
 
 ## What can be tested on Windows 11
 
@@ -15,21 +15,29 @@ An acquired handle establishes Windows share-mode exclusion during that handle's
 
 ## Internal transport and session engine
 
-`UsbPrintStream` uses the installed printer interface with `FILE_FLAG_OVERLAPPED`; async I/O accepts cancellation tokens. Exclusive opening fails closed. It provides no public arbitrary-byte API and is not wired to a live D4 worker operation. A future live operation must retain the same exclusive handle throughout identity/session validation, request, response and cleanup; a separate probe is not authorization to send.
+`UsbPrintStream` uses the installed printer interface with `FILE_FLAG_OVERLAPPED`; async I/O accepts cancellation tokens. Exclusive opening fails closed. It provides no public arbitrary-byte API. The fixed live qualification operation retains the same exclusive handle throughout setup, request, response and cleanup; a separate probe is not authorization to send.
 
-`D4Session` is a single-use, fixed **status-only** qualification exchange based on cap2. It performs packet entry, revision-10 Init, EPSON-CTRL lookup, channel open, bounded credit requests, one captured status request, receive-credit grants and channel close. No EEPROM payload, caller-selected command, key, address, reset, D4 Exit, fallback revision or replay is supported. Currently it runs only against test streams.
+`D4Session` is a single-use, fixed **status-only** qualification exchange based on cap2. It performs packet entry, revision-10 Init, EPSON-CTRL lookup, channel open, bounded credit requests, one captured status request, receive-credit grants and channel close. No EEPROM payload, caller-selected command, key, address, reset, D4 Exit, fallback revision or replay is supported. It is now reachable through the fixed `d4-status-qualification` worker operation and its GUI button. Imported evidence cannot invoke it.
 
 The engine distinguishes command/send/receive credits, waits for nonzero send credit, and handles an authorized data packet preceding the receive-credit acknowledgement. It reassembles split packets and retains coalesced packets. Packet sizes, bytes, fragments, credit polling and overall duration are bounded. A complete reply requires the message-end flag; timeout is not a substitute. Raw incoming chunks and attempted/completed outgoing writes are retained in its result.
 
 Channel close is attempted only for an acknowledged open channel while the stream state is trustworthy and the deadline remains valid. On cancellation, a malformed packet, disconnect or uncertainty, it disposes the stream without adding protocol traffic. A close failure is reported separately from preserved response data. Disposal releases the OS handle; it is not asserted to reset or restore firmware state.
 
-Windows cancellation is cooperative: [Microsoft documents that drivers may not honor cancellation](https://learn.microsoft.com/en-us/windows/win32/fileio/canceling-pending-i-o-operations). Any future native D4 invocation must run within the existing isolated worker's hard deadline, not directly on the UI. This boundary already protects the user-facing exclusive-open probe. A disposal or driver hang cannot be solved merely by passing a token.
+Windows cancellation is cooperative: [Microsoft documents that drivers may not honor cancellation](https://learn.microsoft.com/en-us/windows/win32/fileio/canceling-pending-i-o-operations). The native D4 invocation runs within the existing isolated worker: an 8-second session budget and a 15-second outer hard deadline. User cancellation terminates that worker immediately; channel close is then unconfirmed. This boundary also protects the exclusive-open probe. A disposal or driver hang cannot be solved merely by passing a token.
 
 ## Remaining validation
 
 - Exercise exclusive opening on the real printer and record Windows results with Total Disc Monitor/Control present. An exclusive success alone does not establish clean firmware session state.
 - Verify overlapped cancellation and handle release on physical disconnect and contention without changing drivers.
-- Authorize a separately gated status-only qualification session after session ownership is established; compare its transcript and cleanup against cap2 and Epson software behavior.
+- Run the fixed status-only qualification once; compare its transcript and cleanup against cap2 and Epson software behavior.
 - Only then consider the sourced candidate EEPROM read. The history address map and first real EEPROM response remain unverified.
 
-Automated tests use simulated byte streams, not printer hardware. They check split/coalesced/early replies, zero credits, deadlines, cancellation, malformed lengths, wrong sockets, cleanup failure and disabled live-command authorization. No hardware compatibility claim follows from those tests.
+Automated tests use simulated byte streams, not printer hardware. They check split/coalesced/early replies, zero credits, deadlines, cancellation, malformed lengths, wrong sockets, cleanup failure and rejection of EEPROM and arbitrary-command authorization. No hardware compatibility claim follows from those tests.
+
+## Run one status-only qualification (v1.3.2)
+
+Start USBPcap capture for the PP-100 printer interface if available. Select the original PP-100 printer interface, then click **Evidence Toolkit → Analysis → Run one D4 status qualification** once. The operation acquires its own exclusive handle; a prior probe is not reused. No connection or full-diagnostics run is required first. The button is disabled in simulation and while another application operation is running.
+
+Wait for the result. **Complete** means a complete D4-framed response, not verified printer health. Review **Error**, **Cleanup**, **Response**, and **Trace**. Export the analysis JSON and a FullForensic diagnostic bundle if you want to preserve unredacted communication bytes; TechnicalDiagnostics may omit payloads. Stop and save the USB capture. Confirm Total Disc Monitor can still refresh afterward. If the operation fails, do not repeatedly retry; retain the first result for analysis. The app does not automatically stop services, retry the status query, change drivers, issue D4 Exit or reset the USB device.
+
+On timeout/cancellation, the UI explicitly reports that cleanup is unconfirmed. Raw progress already delivered remains in the Communication Log and bundle; bytes never delivered by the driver cannot be recovered. The status operation is experimental pending this physical validation. It does not request stored EEPROM history or decode a component error.

@@ -69,6 +69,7 @@ public sealed partial class MainViewModel
     public ICommand ExportFindingsCommand {get;private set;}=null!;
     public ICommand SearchErrorsCommand {get;private set;}=null!;
     public ICommand GenerateHtmlCommand {get;private set;}=null!;
+    public ICommand QualifyD4StatusCommand {get;private set;}=null!;
     public ICommand ProbeTransportOwnershipCommand {get;private set;}=null!;
     public ICommand HistoryReadinessCommand {get;private set;}=null!;
     public ICommand ReadHistoryEvidenceCommand {get;private set;}=null!;
@@ -112,6 +113,30 @@ public sealed partial class MainViewModel
             var reply=await RecordedWorker(new("transport-ownership",SelectedDevice!.InterfacePath),token);
             ShowToolkit(reply.TransportOwnership!);
         }),()=>!busy&&!Simulation&&SelectedDevice?.InterfacePath!=null&&SelectedDevice.Vid=="04B8"&&SelectedDevice.Pid=="0007");
+        QualifyD4StatusCommand=new ActionCommand(()=>_=Run(async token=>{
+            var selected=SelectedDevice!;
+            ShowToolkit(new {State="Running one fixed status-only exchange; no EEPROM query",Cleanup="Pending"});
+            try
+            {
+                var reply=await worker.RunAsync(new("d4-status-qualification",selected.InterfacePath),TimeSpan.FromSeconds(15),token,
+                    new Progress<Transaction>(t=>session.RecordTransaction(t)));
+                if(reply.Error!=null)throw new IOException($"{reply.Error} (Windows code: {reply.ErrorCode})");
+                var result=reply.D4Qualification??throw new IOException("Missing qualification result");
+                ShowToolkit(result);
+                session.RecordTransaction(new(Guid.NewGuid(),DateTimeOffset.UtcNow,selected.InstanceId,"Windows usbprint.sys D4 qualification",
+                    selected.InterfacePath!,"EPSON-CTRL","d4-status-qualification result",[],result.Response,null,0,15000,
+                    result.Complete&&result.Cleanup.StartsWith("Close acknowledged",StringComparison.Ordinal)?"Success":"Incomplete",null,result.Error,
+                    result.Cleanup+"; Complete means framed response, not verified printer health or EEPROM access","Live host API result")
+                    {ValidResponse=false,Interpreted=false});
+            }
+            catch(Exception e)
+            {
+                ShowToolkit(new {State="Qualification did not finish",Error=e.Message,Cleanup="Not confirmed; worker termination releases OS handles but does not prove channel close",Evidence="Completed progress records remain in Communication Log"});
+                session.RecordTransaction(new(Guid.NewGuid(),DateTimeOffset.UtcNow,selected.InstanceId,"Windows usbprint.sys D4 qualification",selected.InterfacePath!,
+                    "Host API","d4-status-qualification interrupted",[],[],null,0,15000,"Incomplete",null,e.Message,"Cleanup not confirmed","Worker failure/cancellation"));
+                throw;
+            }
+        }),()=>!busy&&!Simulation&&SelectedDevice?.InterfacePath!=null&&SelectedDevice.Vid=="04B8"&&SelectedDevice.Pid=="0007");
         HistoryReadinessCommand=new ActionCommand(()=>ShowToolkit(HistoryReader.Readiness),()=>!busy);
         ReadHistoryEvidenceCommand=new ActionCommand(()=>{
             var picker=new OpenFileDialog{Filter="History exchange evidence|*.json"};if(picker.ShowDialog()!=true)return;
@@ -120,7 +145,7 @@ public sealed partial class MainViewModel
     }
     internal async Task VerifyToolkitUiAsync()
     {
-        if(Simulation && ProbeTransportOwnershipCommand.CanExecute(null))
+        if(Simulation && (ProbeTransportOwnershipCommand.CanExecute(null)||QualifyD4StatusCommand.CanExecute(null)))
             throw new InvalidOperationException("Ownership probe must be disabled in simulation");
         HistoryReadinessCommand.Execute(null);
         if(!ToolkitResult.Contains("Blocked:")||HistoryReader.Readiness.LiveReadEnabled)

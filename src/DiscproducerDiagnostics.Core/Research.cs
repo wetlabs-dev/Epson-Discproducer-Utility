@@ -102,6 +102,9 @@ public static class WorkerAuthorization
         switch(request.Operation)
         {
             case "query": CommandRegistry.Authorize(request.Command ?? ""); break;
+            case "d4-status-qualification":
+                if (request.Command != null) throw new NotSupportedException("Qualification does not accept command bytes or overrides");
+                break;
             case "transport-ownership":
             case "probe": break; // Path is revalidated by the native boundary before CreateFile.
             case "scan": DiagnosticCommands.Authorize("pnp"); break;
